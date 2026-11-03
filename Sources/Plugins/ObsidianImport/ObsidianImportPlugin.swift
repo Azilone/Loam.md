@@ -22,10 +22,7 @@ public final class ObsidianImportPlugin: Plugin {
     public func activate(context: PluginContext) throws {
         let importer = ObsidianImporter(
             vault: context.vault,
-            dailyNotesFolder: { [weak context] in
-                // The folder of any day's note.
-                (try? context?.service(.dailyNotes)?.path(for: "2000-01-01")).map { VaultPath.directory(of: $0) }
-            },
+            dailyNotesFolder: { [weak context] in context?.service(.dailyNotes)?.folder },
             attachmentsFolder: { [weak context] in context?.service(.attachments)?.folder }
         )
         try context.provide(.obsidianImport, importer)

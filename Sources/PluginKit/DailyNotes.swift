@@ -2,6 +2,9 @@ import Foundation
 
 /// The daily note of a given day. Dates are `YYYY-MM-DD`; `nil` means today.
 public protocol DailyNotesService: AnyObject {
+    /// The folder of daily notes, from the vault's root; empty for the root. New notes may go in year or month
+    /// folders inside it.
+    var folder: String { get }
     /// The path the note has, whether or not it exists yet.
     func path(for date: String?) throws -> String
     /// The text of the note, or nil if the day has no note yet.
@@ -17,6 +20,11 @@ public protocol DailyNotesService: AnyObject {
     func startingText(for date: String?) throws -> String
     /// The days (`YYYY-MM-DD`, sorted) that have a note, in `month` (`YYYY-MM`), or every day when `month` is nil.
     func existingDates(in month: String?) throws -> [String]
+}
+
+public extension DailyNotesService {
+    /// For a provider written before `folder` existed: the folder of a day's note.
+    var folder: String { VaultPath.directory(of: (try? path(for: "2000-01-01")) ?? "") }
 }
 
 /// Sent by the provider of `DailyNotesService` after its folder or format changed, so views listing the days follow.
