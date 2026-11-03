@@ -1,0 +1,13 @@
+{"type": "response", "command": "prompt", "success": true, "data": {"disposition": "started"}}
+{"type": "agent_start"}
+{"type": "message_update", "assistantMessageEvent": {"type": "thinking_delta", "delta": "**Planning precise file operations**"}}
+{"type": "message_update", "assistantMessageEvent": {"type": "thinking_delta", "delta": "\n\n"}}
+{"type": "tool_execution_start", "toolCallId": "call_53b0fb3919e54a06a1c1cb9f0d53fa34|fc_0da5fdf01b70165c016adee203a7e081919b36590f1f48c61f", "toolName": "read", "args": {"path": "Note.md", "offset": 1, "limit": 100}}
+{"type": "tool_execution_end", "toolCallId": "call_53b0fb3919e54a06a1c1cb9f0d53fa34|fc_0da5fdf01b70165c016adee203a7e081919b36590f1f48c61f", "toolName": "read", "isError": false}
+{"type": "message_update", "assistantMessageEvent": {"type": "thinking_delta", "delta": "**Appending list item to header**"}}
+{"type": "message_update", "assistantMessageEvent": {"type": "thinking_delta", "delta": "\n\n"}}
+{"type": "tool_execution_start", "toolCallId": "call_64ba32a70a7b47a59ea3da94eb89fcb2|fc_0da5fdf01b70165c016adee205dc908191a01e116fcd25b92f", "toolName": "edit", "args": {"path": "Note.md", "edits": [{"oldText": "# Hello\n", "newText": "# Hello\n- pi\n"}]}}
+{"type": "tool_execution_end", "toolCallId": "call_64ba32a70a7b47a59ea3da94eb89fcb2|fc_0da5fdf01b70165c016adee205dc908191a01e116fcd25b92f", "toolName": "edit", "isError": false}
+{"type": "message_update", "assistantMessageEvent": {"type": "text_delta", "delta": "OK"}}
+{"type": "agent_end"}
+{"type": "agent_settled"}

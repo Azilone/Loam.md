@@ -1,0 +1,107 @@
+{
+	"nodes": [
+		{
+			"id": "grpA",
+			"type": "group",
+			"label": "Before leaving",
+			"x": -40,
+			"y": -80,
+			"width": 440,
+			"height": 560,
+			"color": "4"
+		},
+		{
+			"id": "grpB",
+			"type": "group",
+			"label": "On site",
+			"x": 460,
+			"y": -80,
+			"width": 520,
+			"height": 760,
+			"color": "5"
+		},
+		{
+			"id": "checks",
+			"type": "text",
+			"text": "## Checklist\n- [ ] Book the apartment\n- [ ] Renew the passport\n- [ ] Travel insurance",
+			"x": 0,
+			"y": 0,
+			"width": 360,
+			"height": 200,
+			"color": "3"
+		},
+		{
+			"id": "dates",
+			"type": "text",
+			"text": "**Dates**: May 8 to 14\n**Budget**: €1,360",
+			"x": 0,
+			"y": 240,
+			"width": 360,
+			"height": 120,
+			"color": "4"
+		},
+		{
+			"id": "voyage",
+			"type": "file",
+			"file": "Notes/Trip to Lisbon.md",
+			"x": 500,
+			"y": 0,
+			"width": 440,
+			"height": 420
+		},
+		{
+			"id": "ideas",
+			"type": "text",
+			"text": "## Ideas\n- Tram 28 in the morning\n- Miradouro at sunset\n- A day in Sintra",
+			"x": 500,
+			"y": 460,
+			"width": 440,
+			"height": 180
+		},
+		{
+			"id": "wiki",
+			"type": "link",
+			"url": "https://en.wikipedia.org/wiki/Lisbon",
+			"x": 1040,
+			"y": 0,
+			"width": 320,
+			"height": 200
+		},
+		{
+			"id": "porto",
+			"type": "text",
+			"text": "And a day in Porto?",
+			"x": 1040,
+			"y": 260,
+			"width": 260,
+			"height": 140,
+			"color": "2"
+		}
+	],
+	"edges": [
+		{
+			"id": "e1",
+			"fromNode": "checks",
+			"fromSide": "right",
+			"toNode": "voyage",
+			"toSide": "left",
+			"label": "before leaving"
+		},
+		{
+			"id": "e2",
+			"fromNode": "voyage",
+			"fromSide": "right",
+			"toNode": "wiki",
+			"toSide": "left",
+			"label": "source"
+		},
+		{
+			"id": "e3",
+			"fromNode": "porto",
+			"fromSide": "left",
+			"toNode": "voyage",
+			"toSide": "right",
+			"color": "2"
+		}
+	]
+}

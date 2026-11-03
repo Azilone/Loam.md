@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# Lists every development Loam running on this Mac and every build in progress, with where each comes from.
+#
+# Usage: loam-ps [--stop NAME|all]
+#
+#   (no option)   the table: what, name, branch, age, pid
+#   --stop NAME   quits the agent instance NAME, or the dev app of the worktree NAME
+#   --stop all    quits every development Loam; the installed /Applications/Loam.app is never touched
+#
+# A kind is `instance` (scripts/agent-run.sh, in /tmp/loam-instances), `dev` (make dev / make run, App/build of a
+# checkout or worktree) or `build` (scripts/build-app.sh running).
+set -euo pipefail
+
+stop=""
+[[ "${1:-}" == --stop ]] && stop="${2:?--stop needs a name or all}"
+
+branch_of() { git -C "$1" branch --show-current 2>/dev/null || echo "?"; }
+
+# The checkout a path belongs to and a short name for it: the worktree's folder, else "main".
+checkout_of() {
+    local path="$1"
+    case "$path" in
+        */.claude/worktrees/*) local rest="${path#*/.claude/worktrees/}"; echo "${path%%/.claude/worktrees/*}/.claude/worktrees/${rest%%/*} ${rest%%/*}" ;;
+        *) echo "${path%%/App/build/*} main" ;;
+    esac
+}
+
+rows=()
+while read -r pid etime cmd; do
+    exe="${cmd%% --*}"
+    if [[ "$exe" == */loam-instances/*/Loam.app/* ]]; then
+        name="${exe#*/loam-instances/}"; name="${name%%/*}"
+        # agent-run.sh records the checkout that built the instance in its folder.
+        source="$(cat "${exe%%/Loam.app/*}/source" 2>/dev/null || true)"
+        rows+=("instance|$name|$([[ -n "$source" ]] && branch_of "$source" || echo -)|$etime|$pid")
+    elif [[ "$exe" == */App/build/Loam.app/* ]]; then
+        read -r checkout name <<< "$(checkout_of "$exe")"
+        rows+=("dev|$name|$(branch_of "$checkout")|$etime|$pid")
+    elif [[ "$cmd" == *scripts/build-app.sh* ]]; then
+        dir="$(lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p')"
+        read -r checkout name <<< "$(checkout_of "$dir/App/build/x")"
+        rows+=("build|$name|$(branch_of "$checkout")|$etime|$pid")
+    fi
+done < <(ps -Ao pid=,etime=,command= | grep -E "MacOS/Loam( |$)|scripts/build-app\.sh" | grep -v -e grep -e "^ *[0-9]* *[0-9:-]* /Applications/")
+
+if [[ -n "$stop" ]]; then
+    for row in "${rows[@]+"${rows[@]}"}"; do
+        IFS='|' read -r kind name _ _ pid <<< "$row"
+        [[ "$kind" == build ]] && continue
+        [[ "$stop" == all || "$stop" == "$name" ]] || continue
+        if [[ "$kind" == instance ]]; then
+            "$(dirname "$0")/loam-ctl" -i "$name" quit >/dev/null 2>&1 || kill "$pid" 2>/dev/null || true
+        else
+            kill "$pid" 2>/dev/null || true
+        fi
+        echo "stopped $kind $name (pid $pid)"
+    done
+    exit 0
+fi
+
+[[ ${#rows[@]} -eq 0 ]] && { echo "No development Loam running."; exit 0; }
+{
+    echo "KIND|NAME|BRANCH|AGE|PID"
+    printf '%s\n' "${rows[@]}" | sort
+} | column -t -s '|'

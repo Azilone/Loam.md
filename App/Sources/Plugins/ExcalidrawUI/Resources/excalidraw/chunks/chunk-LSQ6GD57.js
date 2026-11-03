@@ -1,0 +1,1 @@
+import{a as t,c as s}from"./chunk-ZN4ZVHAX.js";import{b as r}from"./chunk-5WQQVLRT.js";var o,e=r(()=>{s();o=class{constructor(i){this.init=i,this.records=this.init()}static{t(this,"ImperativeState")}reset(){this.records=this.init()}}});export{o as a,e as b};

@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    container: swift:6.0
+    steps:
+      - uses: actions/checkout@v4
+      - run: swift build
+      - run: swift build --package-path CLI
+      - run: swift test
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: swift --version
+      - run: swift build
+      - run: swift build --package-path CLI
+      - run: swift test
+
+  app:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - run: swift --version
+      - run: cd App && swift build
+      - run: cd App && swift test
+      - run: ./scripts/build-app.sh

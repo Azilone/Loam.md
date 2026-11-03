@@ -1,0 +1,194 @@
+{
+	"nodes": [
+		{
+			"id": "title",
+			"type": "text",
+			"text": "# My Typical Week",
+			"x": 0,
+			"y": -200,
+			"width": 700,
+			"height": 120,
+			"fontSize": 57,
+			"styleAttributes": {
+				"border": "invisible"
+			}
+		},
+		{
+			"id": "g0",
+			"type": "group",
+			"label": "Monday",
+			"x": 0,
+			"y": 0,
+			"width": 260,
+			"height": 420
+		},
+		{
+			"id": "g1",
+			"type": "group",
+			"label": "Tuesday",
+			"x": 280,
+			"y": 0,
+			"width": 260,
+			"height": 420
+		},
+		{
+			"id": "g2",
+			"type": "group",
+			"label": "Wednesday",
+			"x": 560,
+			"y": 0,
+			"width": 260,
+			"height": 420
+		},
+		{
+			"id": "g3",
+			"type": "group",
+			"label": "Thursday",
+			"x": 840,
+			"y": 0,
+			"width": 260,
+			"height": 420
+		},
+		{
+			"id": "g4",
+			"type": "group",
+			"label": "Friday",
+			"x": 1120,
+			"y": 0,
+			"width": 260,
+			"height": 420
+		},
+		{
+			"id": "g5",
+			"type": "group",
+			"label": "Saturday",
+			"x": 1400,
+			"y": 0,
+			"width": 260,
+			"height": 420
+		},
+		{
+			"id": "g6",
+			"type": "group",
+			"label": "Sunday",
+			"x": 1680,
+			"y": 0,
+			"width": 260,
+			"height": 420
+		},
+		{
+			"id": "d0",
+			"type": "text",
+			"text": "## Monday\n- Plan the week\n- One hour for surprises\n- Groceries",
+			"x": 20,
+			"y": 60,
+			"width": 220,
+			"height": 320,
+			"color": "4"
+		},
+		{
+			"id": "d1",
+			"type": "text",
+			"text": "## Tuesday\n- Workout 30 min\n- Meeting at 10 am",
+			"x": 300,
+			"y": 60,
+			"width": 220,
+			"height": 320,
+			"color": "3"
+		},
+		{
+			"id": "d2",
+			"type": "text",
+			"text": "## Wednesday\n- Cooking: batch cooking\n- Travel notebook",
+			"x": 580,
+			"y": 60,
+			"width": 220,
+			"height": 320,
+			"color": "5"
+		},
+		{
+			"id": "d3",
+			"type": "text",
+			"text": "## Thursday\n- Evening journal\n- Tidy up 20 min",
+			"x": 860,
+			"y": 60,
+			"width": 220,
+			"height": 320,
+			"color": "2"
+		},
+		{
+			"id": "d4",
+			"type": "text",
+			"text": "## Friday\n- Night out with friends\n- Weekly review",
+			"x": 1140,
+			"y": 60,
+			"width": 220,
+			"height": 320,
+			"color": "6"
+		},
+		{
+			"id": "d5",
+			"type": "text",
+			"text": "## Saturday\n- Market\n- Forest walk",
+			"x": 1420,
+			"y": 60,
+			"width": 220,
+			"height": 320,
+			"color": "4"
+		},
+		{
+			"id": "d6",
+			"type": "text",
+			"text": "## Sunday\n- Rest\n- Prepare the week",
+			"x": 1700,
+			"y": 60,
+			"width": 220,
+			"height": 320,
+			"color": "3"
+		}
+	],
+	"edges": [
+		{
+			"id": "e0",
+			"fromNode": "d0",
+			"fromSide": "right",
+			"toNode": "d1",
+			"toSide": "left"
+		},
+		{
+			"id": "e1",
+			"fromNode": "d1",
+			"fromSide": "right",
+			"toNode": "d2",
+			"toSide": "left"
+		},
+		{
+			"id": "e2",
+			"fromNode": "d2",
+			"fromSide": "right",
+			"toNode": "d3",
+			"toSide": "left"
+		},
+		{
+			"id": "e3",
+			"fromNode": "d3",
+			"fromSide": "right",
+			"toNode": "d4",
+			"toSide": "left"
+		},
+		{
+			"id": "e4",
+			"fromNode": "d4",
+			"fromSide": "right",
+			"toNode": "d5",
+			"toSide": "left"
+		},
+		{
+			"id": "e5",
+			"fromNode": "d5",
+			"fromSide": "right",
+			"toNode": "d6",
+			"toSide": "left"
+		}
+	]
+}
