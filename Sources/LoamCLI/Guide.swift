@@ -129,6 +129,14 @@ public enum Guide {
           - databases and tables of pages: one note per row, its fields as frontmatter, and a collection
             (`loam collection.*`) showing them
           - to-dos: task lines, `- [ ] Text 📅 2026-10-20`
+          - projects: a project is something with an outcome and, usually, tasks and a deadline: a Notion project
+            or a page of a "Projects" database, an Obsidian note tagged `project` or filed under PARA's projects,
+            a Craft or Bear project folder, a list of to-dos under one goal. When the source has some, make real
+            Loam projects (`loam guide recipes`): `loam projects.new title=… due=…`, its open tasks as cards
+            (`projects.add-task`, status from the source: To do, In progress, Done), its other notes moved inside
+            the project's `Notes/` folder with `files.move` (so links follow). Take status, deadline and tasks
+            from the source's own fields, invent none. A note that is only a topic (a resource, an area of life,
+            test or sample data) is not a project: leave it where it is and list it under "To check"
           - journals and daily pages: daily notes, in the folder `loam daily.path` prints, one file per day named
             `YYYY-MM-DD.md`, whatever the source called them (`2026.07.28`, `Mon 14 Jul 2025`); Loam's calendar
             and `daily.*` commands only see them there. Two notes of one day: merge them into one
@@ -163,7 +171,7 @@ public enum Guide {
         ## Finish
 
         1. Check: count the source's notes against the vault's (`loam notes.list`), the source's journal days
-           against `loam daily.list`, and look for links to notes or files that do not exist. Fix what you can,
+           against `loam daily.list`, the projects against `loam projects.list`, and look for links to notes or files that do not exist. Fix what you can,
            list the rest under "To check".
         2. Set `status: done` in the log.
         3. Open the vault in Loam: `loam app switch <vault>` when Loam is running, else
