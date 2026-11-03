@@ -12,6 +12,7 @@ public final class ObsidianImportPlugin: Plugin {
             description: "Copies an Obsidian vault into this one as plain Markdown.",
             icon: "square.and.arrow.down",
             provides: ["obsidian-import"],
+            optionalRequires: ["daily-notes", "attachments"],
             permissions: ["vault.read", "vault.write", "disk.read"]
         )
     }
@@ -19,7 +20,14 @@ public final class ObsidianImportPlugin: Plugin {
     public required init() {}
 
     public func activate(context: PluginContext) throws {
-        let importer = ObsidianImporter(vault: context.vault)
+        let importer = ObsidianImporter(
+            vault: context.vault,
+            dailyNotesFolder: { [weak context] in
+                // The folder of any day's note.
+                (try? context?.service(.dailyNotes)?.path(for: "2000-01-01")).map { VaultPath.directory(of: $0) }
+            },
+            attachmentsFolder: { [weak context] in context?.service(.attachments)?.folder }
+        )
         try context.provide(.obsidianImport, importer)
         try context.registerCommand(Command(
             id: "import.obsidian.vaults",
@@ -35,10 +43,12 @@ public final class ObsidianImportPlugin: Plugin {
             title: "Import an Obsidian vault",
             summary: """
                 Converts an Obsidian vault into plain Markdown in the current vault: wikilinks and embeds become \
-                standard links, callouts become GitHub alerts, comments are removed. The source is never \
-                modified and existing files are never overwritten unless overwrite=true. \
+                standard links, callouts become GitHub alerts, comments are removed. At the vault's root, daily \
+                notes go to the daily notes folder as YYYY-MM-DD.md and the files notes link to (images, PDFs, audio, \
+                video) to the attachments folder, links rewritten; keep-layout=true leaves every file where it is. \
+                The source is never modified and existing files are never overwritten unless overwrite=true. \
                 Arguments: source (path to the Obsidian vault); optional: into (folder of the current vault), \
-                dry-run=true, overwrite=true.
+                dry-run=true, overwrite=true, keep-layout=true.
                 """,
             isInPalette: false
         ) { arguments in
@@ -47,7 +57,8 @@ public final class ObsidianImportPlugin: Plugin {
                 source: source,
                 into: arguments["into"] ?? "",
                 dryRun: arguments["dry-run"] == "true",
-                overwrite: arguments["overwrite"] == "true"
+                overwrite: arguments["overwrite"] == "true",
+                keepLayout: arguments["keep-layout"] == "true"
             )
             return try JSON.string(try importer.run(options))
         })

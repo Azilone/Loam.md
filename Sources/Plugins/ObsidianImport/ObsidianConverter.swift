@@ -6,6 +6,26 @@ import PluginKit
 struct NoteResolver {
     let notePaths: [String]
     let filePaths: [String]
+    /// Every file by its normalized path (macOS stores accents decomposed, links write them composed).
+    private let byKey: [String: String]
+
+    init(notePaths: [String], filePaths: [String]) {
+        self.notePaths = notePaths
+        self.filePaths = filePaths
+        byKey = Dictionary(filePaths.map { (ImportLayout.key($0), $0) }, uniquingKeysWith: { first, _ in first })
+    }
+
+    /// The file a Markdown link destination points to: relative to the note containing it, else from the vault's root,
+    /// else by name as Obsidian does (`![](photo.png)` finds `img/photo.png`); `exact` is false for that last case,
+    /// where the link has to be rewritten to work anywhere else.
+    func existing(_ destination: String, from notePath: String) -> (path: String, exact: Bool)? {
+        if let path = try? VaultPath.resolve(destination, from: notePath), let hit = byKey[ImportLayout.key(path)] {
+            return (hit, true)
+        }
+        if let path = try? VaultPath.normalize(destination), let hit = byKey[ImportLayout.key(path)] { return (hit, true) }
+        if let hit = file(named: destination) { return (hit, false) }
+        return nil
+    }
 
     /// The note a wikilink target points to, plus a warning if the name was ambiguous.
     func note(named target: String) -> (path: String, warning: String?)? {
@@ -38,6 +58,8 @@ struct ObsidianConverter {
     let resolver: NoteResolver
     /// Folder the converted notes are written into, so links are relative to the right place.
     let destinationFolder: String
+    /// The files that land elsewhere than their own path: daily notes and attachments.
+    var layout = ImportLayout.none
 
     private static let wikilink = try! NSRegularExpression(
         pattern: "(!?)\\[\\[([^\\]\\|#\\\\\\n]*)(?:#([^\\]\\|\\\\\\n]*))?(?:\\\\?\\|([^\\]\\n]*))?\\]\\]"
@@ -71,7 +93,9 @@ struct ObsidianConverter {
 
             var lines = [current]
             if let callout = Self.convertCallout(current) { lines = callout }
-            output.append(contentsOf: lines.map { convertLinks(in: $0, notePath: notePath, warnings: &warnings) })
+            output.append(contentsOf: lines.map {
+                convertLinks(in: rewriteStandardLinks(in: $0, notePath: notePath), notePath: notePath, warnings: &warnings)
+            })
         }
         return raw + output.joined(separator: "\n")
     }
@@ -122,6 +146,31 @@ struct ObsidianConverter {
     }
 
     // MARK: Links
+
+    /// The `[text](path)` links of the source that point to a file the import moves, sit in a note it moves, or name a
+    /// file by its name alone (Obsidian finds it anywhere): rewritten to the new relative path. Code spans and links
+    /// to anything else stay as they are.
+    private func rewriteStandardLinks(in line: String, notePath: String) -> String {
+        guard line.contains("](") else { return line }
+        let noteMoved = layout.paths[notePath] != nil
+        let directory = VaultPath.directory(of: destinationPath(notePath))
+        let parts = line.components(separatedBy: "`")
+        var rewritten: [String] = []
+        for (offset, part) in parts.enumerated() {
+            guard offset % 2 == 0, part.contains("](") else { rewritten.append(part); continue }
+            var text = part
+            for link in MarkdownLinks.destinations(in: part).reversed() {
+                guard let found = resolver.existing(link.path, from: notePath),
+                      noteMoved || !found.exact || layout.paths[found.path] != nil
+                else { continue }
+                let source = found.path
+                let relative = VaultPath.relativeDestination(fromDirectory: directory, to: destinationPath(source))
+                text.replaceSubrange(link.range, with: relative + link.suffix)
+            }
+            rewritten.append(text)
+        }
+        return rewritten.joined(separator: "`")
+    }
 
     private func convertLinks(in line: String, notePath: String, warnings: inout [String]) -> String {
         guard line.contains("[[") else { return line }
@@ -244,7 +293,8 @@ struct ObsidianConverter {
     }
 
     func destinationPath(_ sourcePath: String) -> String {
-        destinationFolder.isEmpty ? sourcePath : destinationFolder + "/" + sourcePath
+        if let moved = layout.paths[sourcePath] { return moved }
+        return destinationFolder.isEmpty ? sourcePath : destinationFolder + "/" + sourcePath
     }
 
     private static func isSize(_ alias: String) -> Bool {

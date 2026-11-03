@@ -119,7 +119,8 @@ public enum Guide {
 
         - The source is read-only: never change, move or delete a file of the export or of the other app.
         - Write into a new vault, `~/Documents/<source name>` (the Obsidian vault's name, or the app's name);
-          if that folder exists, add " 2", " 3"… Never write into another vault, never overwrite a file.
+          if that folder exists, add " 2", " 3"… Never write into another vault, never overwrite a file. When the
+          user names the vault to write into, that is the one (it is theirs to choose).
         - Run every `loam` command with `--vault <new vault>`.
         - Plain formats only, as `loam guide notes` describes them. Convert:
           - pages and notes: one `.md` file each, named after the title (no `/` or `:`), folders as in the source
@@ -128,15 +129,20 @@ public enum Guide {
           - databases and tables of pages: one note per row, its fields as frontmatter, and a collection
             (`loam collection.*`) showing them
           - to-dos: task lines, `- [ ] Text 📅 2026-10-20`
-          - journals and daily pages: daily notes, in the folder and name format of `loam daily.path`
-          - attachments (images, PDFs, audio): copied into the vault and linked; never drop one
+          - journals and daily pages: daily notes, in the folder `loam daily.path` prints, one file per day named
+            `YYYY-MM-DD.md`, whatever the source called them (`2026.07.28`, `Mon 14 Jul 2025`); Loam's calendar
+            and `daily.*` commands only see them there. Two notes of one day: merge them into one
+          - attachments (images, PDFs, audio): in the vault's attachments folder (`loam attachments.import`
+            copies a file there under a free name), linked from the notes that use them; never drop one, never
+            leave them in a folder of their own beside the notes
           - block references and transclusions: the text inlined, or a link to its heading
           - whiteboards: `.canvas` (JSON Canvas); drawings: `.excalidraw.md`
           - anything with no equivalent: kept as plain text or a code block, and listed in the log
         - Use the importers built into Loam first, then finish what they report as lost: `import.obsidian`,
           `import.notion`, `import.bear`, `import.apple-notes` (`loam list import` shows their arguments; pass an
-          empty `into=`, so the notes land at the vault's root). They are fast and tested. For any other
-          app, write your own conversion script.
+          empty `into=`, so the notes land at the vault's root, where `import.obsidian` also puts daily notes and
+          attachments where Loam keeps them). They are fast and tested. For any other app, write your own
+          conversion script that follows the same layout.
 
         ## The log, and resuming
 
@@ -156,8 +162,9 @@ public enum Guide {
 
         ## Finish
 
-        1. Check: count the source's notes against the vault's (`loam notes.list`), and look for links to notes
-           that do not exist. Fix what you can, list the rest under "To check".
+        1. Check: count the source's notes against the vault's (`loam notes.list`), the source's journal days
+           against `loam daily.list`, and look for links to notes or files that do not exist. Fix what you can,
+           list the rest under "To check".
         2. Set `status: done` in the log.
         3. Open the vault in Loam: `loam app switch <vault>` when Loam is running, else
            `open -a Loam --args --vault <vault>`.

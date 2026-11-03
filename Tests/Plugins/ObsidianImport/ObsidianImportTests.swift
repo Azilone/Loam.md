@@ -121,6 +121,101 @@ final class ObsidianImporterTests: XCTestCase {
         XCTAssertFalse(vault.exists(".obsidian/app.json"))
     }
 
+    /// A vault that files its days by year, in three date formats, with attachments next to the notes.
+    private func writeJournalVault() throws {
+        try write(".obsidian/daily-notes.json", "{\"folder\":\"JOURNAL/2026/Journalier\",\"format\":\"YYYY.MM.DD\"}")
+        try write("JOURNAL/2026/Journalier/2026.07.28.md", "# 2026.07.28\n![Image](JOURNAL/2026/Journalier/2026.07.28.assets/Image%20(2).webp)\nSee [[Home]]\n")
+        try write("JOURNAL/2026/Journalier/2026.07.28.assets/Image (2).webp", "WEBP")
+        try write("JOURNAL/2025/Journalier/Mon 14 Jul 2025.md", "# a\n")
+        try write("JOURNAL/2025/Journalier/lun. 14 juil. 2025.md", "# b\n")
+        try write("JOURNAL/2024/Journalier/dim. 08 d\u{00E9}c. 2024.md", "# c\nBack to [[2026.07.28]]\n")
+        try write("Meetings/Call/Summary.md", "# Call\n")
+        try write("Meetings/Call/.raw/mic-0.mp3", "MP3")
+        try write("Meetings/Call/audio.mp3", "MP3")
+        try write("Home.md", "# Home\nToday: [[2026.07.28]]\n![pic](pic.png)\n[[Plan]]\n")
+    }
+
+    private func layoutImporter() -> ObsidianImporter {
+        ObsidianImporter(vault: vault, dailyNotesFolder: { "Daily" }, attachmentsFolder: { "Attachments" })
+    }
+
+    func testDailyNotesLandInTheDailyFolderWhateverTheirNameFormat() throws {
+        try writeJournalVault()
+        let report = try layoutImporter().run(ImportOptions(source: source))
+        XCTAssertEqual(report.dailyNotesMoved, 3)
+        XCTAssertTrue(vault.exists("Daily/2026-07-28.md"))
+        XCTAssertTrue(vault.exists("Daily/2025-07-14.md"))
+        XCTAssertTrue(vault.exists("Daily/2024-12-08.md"))
+        XCTAssertFalse(vault.exists("JOURNAL/2026/Journalier/2026.07.28.md"))
+        // Two notes for one day: the second stays where it is, and the report says so.
+        XCTAssertTrue(vault.exists("JOURNAL/2025/Journalier/lun. 14 juil. 2025.md"))
+        XCTAssertTrue(report.warnings.contains { $0.contains("same day") })
+    }
+
+    func testLinksToAndFromMovedFilesStillResolve() throws {
+        try writeJournalVault()
+        _ = try layoutImporter().run(ImportOptions(source: source))
+        XCTAssertTrue(try vault.read("Home.md").contains("[2026.07.28](Daily/2026-07-28.md)"))
+        XCTAssertTrue(try vault.read("Home.md").contains("![pic](Attachments/pic.png)"))
+        let day = try vault.read("Daily/2026-07-28.md")
+        XCTAssertTrue(day.contains("![Image](../Attachments/Image%20%282%29.webp)") || day.contains("![Image](../Attachments/Image%20(2).webp)"))
+        XCTAssertTrue(day.contains("[Home](../Home.md)"))
+        XCTAssertTrue(try vault.read("Daily/2024-12-08.md").contains("(2026-07-28.md)"))
+    }
+
+    func testOnlyLinkedFilesGoToAttachmentsAndHiddenFoldersStay() throws {
+        try writeJournalVault()
+        let report = try layoutImporter().run(ImportOptions(source: source))
+        XCTAssertEqual(report.attachmentsMoved, 2)
+        XCTAssertTrue(vault.exists("Attachments/pic.png"))
+        XCTAssertTrue(vault.exists("Attachments/Image (2).webp"))
+        XCTAssertFalse(vault.exists("pic.png"))
+        // Not linked from any note, or inside a hidden folder: unmoved.
+        XCTAssertTrue(vault.exists("Meetings/Call/audio.mp3"))
+        XCTAssertTrue(vault.exists("Meetings/Call/.raw/mic-0.mp3"))
+    }
+
+    func testALinkByFileNameAloneIsRewrittenToWork() throws {
+        try write("Notes/N.md", "![](photo.png) and [doc](spec.pdf)\n")
+        try write("img/photo.png", "P")
+        try write("docs/spec.pdf", "D")
+        _ = try ObsidianImporter(vault: vault).run(ImportOptions(source: source))
+        XCTAssertEqual(try vault.read("Notes/N.md"), "![](../img/photo.png) and [doc](../docs/spec.pdf)\n")
+        let moved = try layoutImporter().run(ImportOptions(source: source, overwrite: true))
+        XCTAssertEqual(moved.attachmentsMoved >= 2, true)
+        XCTAssertEqual(try vault.read("Notes/N.md"), "![](../Attachments/photo.png) and [doc](../Attachments/spec.pdf)\n")
+    }
+
+    func testTwoAttachmentsWithOneNameKeepBoth() throws {
+        try write("A/pic.png", "ONE")
+        try write("B/pic.png", "TWO")
+        try write("Notes/N.md", "![[A/pic.png]] ![[B/pic.png]]\n")
+        let report = try layoutImporter().run(ImportOptions(source: source))
+        // The vault's own `pic.png` (linked from Notes/Plan.md) is the third.
+        XCTAssertEqual(report.attachmentsMoved, 3)
+        XCTAssertEqual(try vault.read("Attachments/pic.png"), "ONE")
+        XCTAssertEqual(try vault.read("Attachments/pic 2.png"), "TWO")
+    }
+
+    func testKeepLayoutAndImportIntoAFolderLeaveEveryPath() throws {
+        try writeJournalVault()
+        let kept = try layoutImporter().run(ImportOptions(source: source, keepLayout: true))
+        XCTAssertEqual(kept.dailyNotesMoved + kept.attachmentsMoved, 0)
+        XCTAssertTrue(vault.exists("JOURNAL/2026/Journalier/2026.07.28.md"))
+        XCTAssertTrue(vault.exists("pic.png"))
+    }
+
+    func testDailyNoteNames() {
+        XCTAssertEqual(DailyNoteName.day(of: "2026.07.28"), "2026-07-28")
+        XCTAssertEqual(DailyNoteName.day(of: "2026-07-28"), "2026-07-28")
+        XCTAssertEqual(DailyNoteName.day(of: "Fri 08 Aug 2025"), "2025-08-08")
+        XCTAssertEqual(DailyNoteName.day(of: "dim. 08 d\u{00E9}c. 2024"), "2024-12-08")
+        XCTAssertEqual(DailyNoteName.day(of: "mar. 14 f\u{00E9}vr. 2025"), "2025-02-14")
+        XCTAssertEqual(DailyNoteName.day(of: "dim. 08 de\u{0301}c. 2024"), "2024-12-08")
+        XCTAssertNil(DailyNoteName.day(of: "SEMAINE 52 d\u{00E9}c. 2024"))
+        XCTAssertNil(DailyNoteName.day(of: "Home"))
+    }
+
     func testBoardsFollowTheImportAndLoseTheirWikilinks() throws {
         try write("Maps/trip.canvas", """
             {"nodes":[{"id":"a","type":"file","file":"Notes/Plan.md","x":0,"y":0,"width":400,"height":400},\

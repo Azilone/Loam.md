@@ -7,12 +7,18 @@ public struct ImportOptions {
     public var into: String
     public var dryRun: Bool
     public var overwrite: Bool
+    /// Keeps every file at its own path. By default, importing at the vault's root puts daily notes in the daily notes
+    /// folder (`YYYY-MM-DD.md`) and the files notes link to in the attachments folder, as Loam does.
+    public var keepLayout: Bool
 
-    public init(source: URL, into: String = "", dryRun: Bool = false, overwrite: Bool = false) {
+    public init(
+        source: URL, into: String = "", dryRun: Bool = false, overwrite: Bool = false, keepLayout: Bool = false
+    ) {
         self.source = source
         self.into = into
         self.dryRun = dryRun
         self.overwrite = overwrite
+        self.keepLayout = keepLayout
     }
 }
 
@@ -29,6 +35,10 @@ public struct ImportReport: Codable, Equatable {
     /// Other files copied: images and PDFs as they are; `.canvas` boards (already JSON Canvas) with their file paths
     /// moved into the destination folder and the wikilinks of their text cards made standard links.
     public var copied = 0
+    /// Daily notes put in the daily notes folder, named `YYYY-MM-DD.md`.
+    public var dailyNotesMoved = 0
+    /// Files put in the attachments folder (they are among `copied`).
+    public var attachmentsMoved = 0
     /// Files that already existed in the destination and were left alone.
     public var skipped: [String] = []
     public var warnings: [String] = []
@@ -77,10 +87,19 @@ public final class ObsidianImporter: ObsidianImporting {
     private static let ignoredFolders: Set<String> = [".obsidian", ".trash", ".git"]
 
     private let list: URL
+    private let dailyNotesFolder: () -> String?
+    private let attachmentsFolder: () -> String?
 
-    public init(vault: VaultAccess, list: URL = ObsidianVaults.defaultList) {
+    /// `dailyNotesFolder` and `attachmentsFolder` give the folders of the vault's daily notes and attachments, nil
+    /// when it has none: without them, files keep their paths.
+    public init(
+        vault: VaultAccess, list: URL = ObsidianVaults.defaultList,
+        dailyNotesFolder: @escaping () -> String? = { nil }, attachmentsFolder: @escaping () -> String? = { nil }
+    ) {
         self.vault = vault
         self.list = list
+        self.dailyNotesFolder = dailyNotesFolder
+        self.attachmentsFolder = attachmentsFolder
     }
 
     public func vaults() -> [ObsidianVault] {
@@ -118,13 +137,23 @@ public final class ObsidianImporter: ObsidianImporting {
         let into = try VaultPath.normalize(options.into)
         let files = try listFiles(in: options.source)
         let notes = files.filter { $0.lowercased().hasSuffix(".md") }
-        let converter = ObsidianConverter(
-            resolver: NoteResolver(notePaths: notes, filePaths: files),
-            destinationFolder: into
-        )
+        let resolver = NoteResolver(notePaths: notes, filePaths: files)
+        var converter = ObsidianConverter(resolver: resolver, destinationFolder: into)
         var report = ImportReport(dryRun: options.dryRun)
         report.dailyNotes = dailyNotesHint(in: options.source)
         report.communityPlugins = communityPlugins(in: options.source)
+        if into.isEmpty, !options.keepLayout {
+            let layout = ImportLayout.plan(
+                notes: notes, files: files, resolver: resolver,
+                dailyFolder: dailyNotesFolder(), attachmentsFolder: attachmentsFolder(),
+                obsidianDailyFolder: report.dailyNotes?.folder,
+                read: { try? String(contentsOf: options.source.appendingPathComponent($0), encoding: .utf8) }
+            )
+            converter.layout = layout
+            report.dailyNotesMoved = layout.dailyNotes
+            report.attachmentsMoved = layout.attachments
+            report.warnings.append(contentsOf: layout.warnings)
+        }
         return ImportRun(vault: vault, options: options, converter: converter, files: files, notes: notes, report: report)
     }
 
