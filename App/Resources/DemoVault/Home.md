@@ -19,6 +19,11 @@ This vault is a demo: everyday notes that show what Loam can do. Everything is p
 | Habits and streaks | [[Walk]] · [[Reading]] · [[Water]] |
 | Everything Markdown can show | [[Formatting Reference]] |
 
+## Start here
+- [[What to Use Loam For]]: seven ways to use Loam, each with an example
+- [[Keyboard Shortcuts]]: `⌘P`, `⌘O`, `⇧⌘F` and the rest
+- [[Make It Yours]]: plugins, themes, import, sync
+
 ## Journal
 - Today: [[2026-10-29]]
 - Yesterday: [[2026-10-28]] · the day before: [[2026-10-27]]

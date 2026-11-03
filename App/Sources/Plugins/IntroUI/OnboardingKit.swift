@@ -352,7 +352,7 @@ struct LoamMark: View {
     var size: CGFloat = 104
 
     var body: some View {
-        Image(nsImage: NSApp.applicationIconImage)
+        Image(nsImage: IntroAssets.shared.appIcon ?? NSImage())
             .resizable()
             .frame(width: size * 1024 / 824, height: size * 1024 / 824)
             .frame(width: size, height: size)

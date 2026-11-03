@@ -441,6 +441,21 @@ public enum Guide {
         lists community themes in themes.json: `loam app run themes.catalog`, then
         `loam app run themes.install id=<id>` and `loam app run themes.use name=<id>`.
 
+        # Publish a theme
+
+        A theme is one JSON file (format: docs/THEMES.md in the Loam repository; start from `.loam/themes/<Name>.json`).
+        To list it, open a pull request on https://github.com/Azilone/loam-community with two changes:
+
+        1. Add the file as `themes/<id>.json`. The id is lowercase letters, digits, `-` and `_`, 64 characters at most.
+        2. Add its entry to `themes.json`:
+
+        ```json
+        { "id": "paper", "name": "Paper", "author": "you", "description": "…", "version": "1.0.0", "appearance": "auto" }
+        ```
+
+        `appearance` is `light`, `dark` or `auto`, as in the theme file. Check it before the pull request: put the
+        repository's `themes.json` in `LOAM_THEME_CATALOG` and run `loam app run themes.install id=<id>`.
+
         """
     }
 }

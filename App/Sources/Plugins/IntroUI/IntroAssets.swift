@@ -15,9 +15,13 @@ final class IntroAssets {
     let pole: NSImage?
     let welcome: NSImage?
     let music: URL?
-    /// Loam's own icon, the one the Dock shows: risen at the end of the intro, and on the import card.
+    /// Loam's own icon, the one the Dock shows: risen at the end of the intro, and on the import card. Outside Loam.app
+    /// (tests, a bare build) the system would hand back a folder or a generic app, so the bundled copy stands in.
     var appIcon: NSImage? {
-        NSApp?.applicationIconImage ?? NSWorkspace.shared.icon(forFile: Bundle.main.bundlePath)
+        if Bundle.main.url(forResource: "Loam", withExtension: "icns") != nil, let icon = NSApp?.applicationIconImage {
+            return icon
+        }
+        return Self.bundle?.url(forResource: "Loam", withExtension: "png", subdirectory: "Brand/Icon").flatMap(NSImage.init(contentsOf:))
     }
     /// "THE SECOND BRAIN that becomes ANYTHING" and "an open-source notebook": drawn once into pictures, so the intro
     /// scales pictures instead of laying text out again every frame.

@@ -95,7 +95,7 @@ private struct ShellWindowContent: View {
             .transaction(value: showsTrailing) { $0.animation = nil }
             .environment(\.sidebarEdges, SidebarEdges(
                 leadingEdge: leadingEdge(showsLeading), trailingRoom: trailingRoom(showsTrailing),
-                animation: SidebarMotion.animation(reduceMotion: reduceMotion)
+                animation: SidebarMotion.animation(reduceMotion: reduceMotion || !workspace.isSidebarSliding)
             ))
             .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
             if hasTrailing { SideColumnRoom(width: trailingWidth + ColumnResizeHandle.width, isShown: showsTrailing) }
@@ -132,7 +132,7 @@ private struct ShellWindowContent: View {
         }
         .background(alignment: .topTrailing) {
             if hasTrailing {
-                SlidingColumn(isShown: showsTrailing, edge: .trailing, reduceMotion: reduceMotion) {
+                SlidingColumn(isShown: showsTrailing, edge: .trailing, reduceMotion: reduceMotion, animated: workspace.isSidebarSliding) {
                     HStack(spacing: 0) {
                         ColumnResizeHandle(width: $trailingWidth, range: Self.trailingRange, growsRightward: false) {
                             UserDefaults.standard.set(trailingWidth, forKey: Self.trailingWidthKey)

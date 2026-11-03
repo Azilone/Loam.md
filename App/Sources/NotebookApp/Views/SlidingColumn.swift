@@ -14,12 +14,16 @@ struct SlidingColumn<Content: View>: NSViewRepresentable {
     let edge: HorizontalEdge
     /// With Reduce Motion the column does not slide: it cross-fades in place.
     let reduceMotion: Bool
+    /// False when the change is not the user's (the page they went to has nothing for this column): it then jumps,
+    /// in the same frame as the pages, instead of sliding out of step with them.
+    let animated: Bool
     let content: Content
 
-    init(isShown: Bool, edge: HorizontalEdge, reduceMotion: Bool, @ViewBuilder content: () -> Content) {
+    init(isShown: Bool, edge: HorizontalEdge, reduceMotion: Bool, animated: Bool = true, @ViewBuilder content: () -> Content) {
         self.isShown = isShown
         self.edge = edge
         self.reduceMotion = reduceMotion
+        self.animated = animated
         self.content = content()
     }
 
@@ -29,7 +33,7 @@ struct SlidingColumn<Content: View>: NSViewRepresentable {
 
     func updateNSView(_ view: SlidingColumnView<Content>, context: Context) {
         view.host.rootView = content
-        view.setShown(isShown, reduceMotion: reduceMotion)
+        view.setShown(isShown, reduceMotion: reduceMotion, animated: animated)
     }
 
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: SlidingColumnView<Content>, context: Context) -> CGSize? {
@@ -100,7 +104,7 @@ final class SlidingColumnView<Content: View>: NSView {
         isShown ? super.hitTest(point) : nil
     }
 
-    func setShown(_ shown: Bool, reduceMotion: Bool) {
+    func setShown(_ shown: Bool, reduceMotion: Bool, animated: Bool) {
         guard shown != isShown else { return }
         // Where the column is on screen now, which a slide in progress has not yet finished.
         let current = host.layer?.presentation()?.frame.origin.x ?? host.frame.origin.x
@@ -109,7 +113,7 @@ final class SlidingColumnView<Content: View>: NSView {
         host.isHidden = false
         isFadingOut = reduceMotion && !shown
         host.frame = restFrame
-        guard window != nil, bounds.width > 0, let layer = host.layer else {
+        guard animated, window != nil, bounds.width > 0, let layer = host.layer else {
             isFadingOut = false
             host.frame = restFrame
             host.isHidden = !shown
