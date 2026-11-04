@@ -133,23 +133,7 @@ public final class ForceSimulation {
             vy[s] += dy * (1 - link.bias)
         }
 
-        // Repulsion between every pair. Quadratic, fine for the few thousand notes of a personal vault.
-        let minDistance2 = Self.minDistance * Self.minDistance
-        for i in 0 ..< n {
-            for j in (i + 1) ..< n {
-                var dx = x[j] - x[i]
-                var dy = y[j] - y[i]
-                if dx == 0 { dx = jiggle() }
-                if dy == 0 { dy = jiggle() }
-                var l2 = dx * dx + dy * dy
-                if l2 < minDistance2 { l2 = (minDistance2 * l2).squareRoot() }
-                let w = Self.charge * alpha / l2
-                vx[i] += dx * w
-                vy[i] += dy * w
-                vx[j] -= dx * w
-                vy[j] -= dy * w
-            }
-        }
+        repel()
 
         for i in 0 ..< n {
             vx[i] -= x[i] * Self.gravity * alpha
@@ -165,6 +149,133 @@ public final class ForceSimulation {
                 x[i] += vx[i]
                 y[i] += vy[i]
             }
+        }
+    }
+
+    // MARK: Repulsion
+
+    /// How far a group of nodes must be, relative to its width, to push as one body at its centre (d3's theta).
+    static let theta: Double = 0.9
+
+    /// The quadtree of the nodes, rebuilt each tick in these buffers: cell `c` covers a square of `cellSize[c]`,
+    /// holds `cellMass[c]` nodes centred on `cellX[c], cellY[c]`, and either has four children from
+    /// `cellChild[c]` on, or is a leaf whose nodes are `order[cellStart[c] ..< cellEnd[c]]`.
+    private var order: [Int] = []
+    private var scratch: [Int] = []
+    private var cellSize: [Double] = []
+    private var cellMass: [Double] = []
+    private var cellX: [Double] = []
+    private var cellY: [Double] = []
+    private var cellChild: [Int] = []
+    private var cellStart: [Int] = []
+    private var cellEnd: [Int] = []
+    private var stack: [Int] = []
+
+    /// Every node pushes the others away, as Barnes-Hut does in d3: near nodes one by one, far groups as a single
+    /// body. Some n log n steps a tick instead of n², which keeps a vault of thousands of notes moving at full speed.
+    private func repel() {
+        let n = nodeCount
+        var minX = Double.infinity, minY = Double.infinity, maxX = -Double.infinity, maxY = -Double.infinity
+        for i in 0 ..< n {
+            minX = min(minX, x[i]); maxX = max(maxX, x[i])
+            minY = min(minY, y[i]); maxY = max(maxY, y[i])
+        }
+        let side = max(maxX - minX, maxY - minY, 1)
+        order = Array(0 ..< n)
+        scratch = order
+        cellSize.removeAll(keepingCapacity: true)
+        cellMass.removeAll(keepingCapacity: true)
+        cellX.removeAll(keepingCapacity: true)
+        cellY.removeAll(keepingCapacity: true)
+        cellChild.removeAll(keepingCapacity: true)
+        cellStart.removeAll(keepingCapacity: true)
+        cellEnd.removeAll(keepingCapacity: true)
+        fill(addCell(size: side), start: 0, end: n, x0: minX, y0: minY, size: side)
+
+        let minDistance2 = Self.minDistance * Self.minDistance
+        let theta2 = Self.theta * Self.theta
+        let strength = Self.charge * alpha
+        for i in 0 ..< n {
+            stack.removeAll(keepingCapacity: true)
+            stack.append(0)
+            while let c = stack.popLast() {
+                if cellChild[c] < 0 {
+                    for k in cellStart[c] ..< cellEnd[c] {
+                        let j = order[k]
+                        guard j != i else { continue }
+                        var dx = x[j] - x[i]
+                        var dy = y[j] - y[i]
+                        if dx == 0 { dx = jiggle() }
+                        if dy == 0 { dy = jiggle() }
+                        var l2 = dx * dx + dy * dy
+                        if l2 < minDistance2 { l2 = (minDistance2 * l2).squareRoot() }
+                        vx[i] += dx * strength / l2
+                        vy[i] += dy * strength / l2
+                    }
+                    continue
+                }
+                let dx = cellX[c] - x[i], dy = cellY[c] - y[i]
+                var l2 = dx * dx + dy * dy
+                if cellSize[c] * cellSize[c] < theta2 * l2 {
+                    if l2 < minDistance2 { l2 = (minDistance2 * l2).squareRoot() }
+                    vx[i] += dx * strength * cellMass[c] / l2
+                    vy[i] += dy * strength * cellMass[c] / l2
+                } else {
+                    for child in cellChild[c] ..< cellChild[c] + 4 where cellMass[child] > 0 { stack.append(child) }
+                }
+            }
+        }
+    }
+
+    /// Adds an empty cell at the end of the buffers and returns its index.
+    private func addCell(size: Double) -> Int {
+        cellSize.append(size)
+        cellMass.append(0)
+        cellX.append(0)
+        cellY.append(0)
+        cellChild.append(-1)
+        cellStart.append(0)
+        cellEnd.append(0)
+        return cellSize.count - 1
+    }
+
+    /// Fills cell `c` with the nodes `order[start ..< end]`, in the square at `x0, y0`, and unless it is small
+    /// enough to be a leaf, splits it into four quarters that take the next four indices.
+    private func fill(_ c: Int, start: Int, end: Int, x0: Double, y0: Double, size: Double) {
+        var sx = 0.0, sy = 0.0
+        for k in start ..< end {
+            sx += x[order[k]]
+            sy += y[order[k]]
+        }
+        let mass = Double(end - start)
+        cellMass[c] = mass
+        cellX[c] = mass > 0 ? sx / mass : 0
+        cellY[c] = mass > 0 ? sy / mass : 0
+        cellStart[c] = start
+        cellEnd[c] = end
+        // A leaf holds one node, or several on the same spot (nothing more to split).
+        guard end - start > 1, size > 1e-3 else { return }
+
+        // The nodes sorted by quarter: top left, top right, bottom left, bottom right.
+        let half = size / 2, midX = x0 + half, midY = y0 + half
+        func quarter(_ i: Int) -> Int { (x[i] < midX ? 0 : 1) + (y[i] < midY ? 0 : 2) }
+        var counts = [0, 0, 0, 0]
+        for k in start ..< end { counts[quarter(order[k])] += 1 }
+        var bounds = [start, 0, 0, 0, 0]
+        for q in 0 ..< 4 { bounds[q + 1] = bounds[q] + counts[q] }
+        var next = Array(bounds[0 ..< 4])
+        for k in start ..< end {
+            let i = order[k]
+            scratch[next[quarter(i)]] = i
+            next[quarter(i)] += 1
+        }
+        for k in start ..< end { order[k] = scratch[k] }
+
+        let first = addCell(size: half)
+        for _ in 1 ..< 4 { _ = addCell(size: half) }
+        cellChild[c] = first
+        for q in 0 ..< 4 {
+            fill(first + q, start: bounds[q], end: bounds[q + 1], x0: q % 2 == 0 ? x0 : midX, y0: q < 2 ? y0 : midY, size: half)
         }
     }
 

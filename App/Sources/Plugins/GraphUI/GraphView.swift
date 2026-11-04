@@ -176,6 +176,7 @@ private struct GraphCanvas: View {
     @State private var magnifyStart: CGFloat?
     @State private var scrollMonitor: Any?
     @State private var pointer = PointerBox()
+    @State private var shapes = ShapeCache()
 
     /// What a press on the canvas does, decided where it starts.
     private enum CanvasDrag {
@@ -295,16 +296,28 @@ private struct GraphCanvas: View {
         let points = (0 ..< data.nodes.count).map { model.screenPoint(simulation.position($0), in: size) }
         let focus = model.highlightedNode
         let focusAmount = motion.focus
+        // Only what can show is drawn: a big vault zoomed in leaves most of its notes off the canvas.
+        let visible = CGRect(origin: .zero, size: size).insetBy(dx: -80, dy: -80)
+        let onScreen = points.map { visible.contains($0) }
         drawScreen(in: &context, size: size)
-        // Halos first, under the links, so the links stay readable through them.
-        for (i, node) in data.nodes.enumerated() {
+        // Halos first, under the links, so the links stay readable through them. Halos of the same strength go in
+        // one path and one fill: a fill per note is what made a vault of hundreds of notes stutter.
+        var halos: [Int: (path: Path, opacity: Double)] = [:]
+        for (i, node) in data.nodes.enumerated() where onScreen[i] {
             let presence = motion.presence(i)
             guard presence > 0.001 else { continue }
             let grow = motion.grow[i]
             let r = model.screenRadius(degree: node.degree) * presence * (1 + 0.3 * grow)
             let dim = focusAmount * (1 - motion.lit[i])
-            drawHalo(at: points[i], radius: r, degree: node.degree, emphasis: max(i == data.center ? 1 : 0, grow),
-                     opacity: (1 - 0.9 * dim) * presence, seed: i, in: &context)
+            let emphasis = max(i == data.center ? 1 : 0, grow)
+            let opacity = (0.28 + 0.4 * emphasis) * (1 - 0.9 * dim) * presence
+            guard opacity > 0.005 else { continue }
+            let halo = shapes.halo(radius: r, degree: node.degree, emphasis: emphasis, scale: model.scale, seed: i)
+            let bucket = Int((opacity * 40).rounded())
+            halos[bucket, default: (Path(), Double(bucket) / 40)].path.addPath(halo, transform: CGAffineTransform(translationX: points[i].x, y: points[i].y))
+        }
+        for (_, halo) in halos {
+            context.fill(halo.path, with: .color(theme.accent.opacity(halo.opacity)))
         }
 
         // Links: faint, fading in with their notes; the focused note's links turn to the accent.
@@ -312,6 +325,10 @@ private struct GraphCanvas: View {
         var highlighted = Path()
         var appearing: [(Path, Double)] = []
         for edge in data.edges {
+            guard onScreen[edge.a] || onScreen[edge.b]
+                || visible.intersects(CGRect(x: min(points[edge.a].x, points[edge.b].x), y: min(points[edge.a].y, points[edge.b].y),
+                                             width: abs(points[edge.a].x - points[edge.b].x), height: abs(points[edge.a].y - points[edge.b].y)))
+            else { continue }
             let presence = min(motion.presence(edge.a), motion.presence(edge.b))
             var line = Path()
             line.move(to: points[edge.a])
@@ -334,16 +351,22 @@ private struct GraphCanvas: View {
         }
         context.stroke(highlighted, with: .color(theme.accent.opacity(0.3 + 0.6 * focusAmount)), lineWidth: 1 + 0.5 * focusAmount)
 
-        for (i, node) in data.nodes.enumerated() {
+        // The dots: the paper under all of them in one fill, then the accent, one fill per strength.
+        var paper = Path()
+        var cores: [Int: Path] = [:]
+        for (i, node) in data.nodes.enumerated() where onScreen[i] {
             let presence = motion.presence(i)
             guard presence > 0.001 else { continue }
             let grow = motion.grow[i]
             let r = model.screenRadius(degree: node.degree) * presence * (1 + 0.3 * grow)
             let rect = CGRect(x: points[i].x - r, y: points[i].y - r, width: r * 2, height: r * 2)
             let dim = focusAmount * (1 - motion.lit[i])
-            let core = Path(ellipseIn: rect)
-            context.fill(core, with: .color(theme.background))
-            context.fill(core, with: .color(theme.accent.opacity(0.3 + 0.7 * (1 - 0.9 * dim))))
+            paper.addEllipse(in: rect)
+            cores[Int(((0.3 + 0.7 * (1 - 0.9 * dim)) * 40).rounded()), default: Path()].addEllipse(in: rect)
+        }
+        context.fill(paper, with: .color(theme.background))
+        for (bucket, core) in cores {
+            context.fill(core, with: .color(theme.accent.opacity(Double(bucket) / 40)))
         }
 
         let fade = model.labelOpacity
@@ -366,7 +389,7 @@ private struct GraphCanvas: View {
                 context.draw(text, at: CGPoint(x: tag.midX, y: tag.midY), anchor: .center)
             }
         }
-        for (i, node) in data.nodes.enumerated() {
+        for (i, node) in data.nodes.enumerated() where onScreen[i] {
             let presence = motion.presence(i)
             let lit = motion.lit[i] * focusAmount
             let isCenter = i == data.center
@@ -402,42 +425,14 @@ private struct GraphCanvas: View {
     private func drawScreen(in context: inout GraphicsContext, size: CGSize) {
         let origin = model.screenPoint(.zero, in: size)
         let step = max(14, 22 * model.scale)
-        let r = 0.75
-        var dots = Path()
-        var y = origin.y.truncatingRemainder(dividingBy: step) - step
-        while y < size.height + step {
-            var x = origin.x.truncatingRemainder(dividingBy: step) - step
-            while x < size.width + step {
-                dots.addEllipse(in: CGRect(x: x - r, y: y - r, width: 2 * r, height: 2 * r))
-                x += step
-            }
-            y += step
-        }
+        // The screen is built for steps 5 % apart and stretched to the exact one, so zooming reuses it.
+        let built = pow(1.05, (log(step) / log(1.05)).rounded())
+        let stretch = step / built
+        let dots = shapes.screen(step: built, size: CGSize(width: size.width / stretch, height: size.height / stretch))
+        var context = context
+        context.translateBy(x: origin.x.truncatingRemainder(dividingBy: step), y: origin.y.truncatingRemainder(dividingBy: step))
+        context.scaleBy(x: stretch, y: stretch)
         context.fill(dots, with: .color(theme.accent.opacity(0.18)))
-    }
-
-    /// The halo of a note in the print look: dots of the accent around it, large near the note and
-    /// shrinking outward, wider for a note with more links and for the one being looked at.
-    private func drawHalo(at point: CGPoint, radius: CGFloat, degree: Int, emphasis: Double, opacity: Double,
-                          seed: Int, in context: inout GraphicsContext) {
-        let reach = max(radius * 2.6, 14 + 3 * Double(min(degree, 8)) + 14 * emphasis) * Double(min(1, model.scale + 0.4))
-        let step = 3.2
-        var halo = Path()
-        let count = Int(reach / step)
-        if count > 0 {
-            for row in -count...count {
-                for column in -count...count {
-                    let dx = Double(column) * step + (row % 2 == 0 ? 0 : step / 2), dy = Double(row) * step * 0.87
-                    let d = hypot(dx, dy) / reach
-                    guard d < 1, d > Double(radius / reach) * 1.15 else { continue }
-                    let jitter = HalftoneNoise.hash(column &+ seed &* 31, row &+ seed)
-                    let size = step * 0.5 * pow(1 - d, 1.4) * (0.75 + 0.5 * jitter)
-                    guard size > 0.35 else { continue }
-                    halo.addEllipse(in: CGRect(x: point.x + dx - size, y: point.y + dy - size, width: 2 * size, height: 2 * size))
-                }
-            }
-        }
-        context.fill(halo, with: .color(theme.accent.opacity((0.28 + 0.4 * emphasis) * opacity)))
     }
 
     /// Scrolling over the canvas zooms around the pointer, as in Obsidian. SwiftUI has no scroll-wheel gesture
@@ -469,6 +464,75 @@ private struct GraphCanvas: View {
 private final class PointerBox {
     var location: CGPoint?
     var size: CGSize = .zero
+}
+
+/// The shapes of the print look, built once and reused from frame to frame: rebuilding every halo's dots each frame
+/// is what made the graph of a real vault lag.
+@MainActor
+private final class ShapeCache {
+    private struct HaloKey: Hashable {
+        let radius: Int, reach: Int, seed: Int
+    }
+
+    private var halos: [HaloKey: Path] = [:]
+    private var screenKey: (step: CGFloat, size: CGSize)?
+    private var screenPath = Path()
+
+    /// The halo of a note in the print look, around the origin: dots of the accent, large near the note and
+    /// shrinking outward, wider for a note with more links and for the one being looked at. Sizes are rounded to a
+    /// quarter point and the dots' jitter comes in 16 patterns, so a few shapes serve the whole graph.
+    func halo(radius: CGFloat, degree: Int, emphasis: Double, scale: CGFloat, seed: Int) -> Path {
+        let reach = max(radius * 2.6, 14 + 3 * Double(min(degree, 8)) + 14 * emphasis) * Double(min(1, scale + 0.4))
+        let key = HaloKey(radius: Int((radius * 4).rounded()), reach: Int((reach * 4).rounded()), seed: seed % 16)
+        if let path = halos[key] { return path }
+        if halos.count > 4000 { halos.removeAll(keepingCapacity: true) }
+        let halo = build(key)
+        halos[key] = halo
+        return halo
+    }
+
+    private func build(_ key: HaloKey) -> Path {
+        let radius = Double(key.radius) / 4, reach = Double(key.reach) / 4
+        let step = 3.2
+        var halo = Path()
+        let count = Int(reach / step)
+        if count > 0 {
+            for row in -count...count {
+                for column in -count...count {
+                    let dx = Double(column) * step + (row % 2 == 0 ? 0 : step / 2), dy = Double(row) * step * 0.87
+                    let d = hypot(dx, dy) / reach
+                    guard d < 1, d > radius / reach * 1.15 else { continue }
+                    let jitter = HalftoneNoise.hash(column &+ key.seed &* 31, row &+ key.seed)
+                    let size = step * 0.5 * pow(1 - d, 1.4) * (0.75 + 0.5 * jitter)
+                    guard size > 0.35 else { continue }
+                    halo.addEllipse(in: CGRect(x: dx - size, y: dy - size, width: 2 * size, height: 2 * size))
+                }
+            }
+        }
+        return halo
+    }
+
+    /// The paper's screen of dots for a canvas of `size`, one `step` apart, starting a step before the top left
+    /// corner: the canvas moves it under the graph.
+    func screen(step: CGFloat, size: CGSize) -> Path {
+        // Rounded up, so a canvas that grows a little, or a screen stretched a little more, keeps it.
+        let size = CGSize(width: (size.width / 256).rounded(.up) * 256, height: (size.height / 256).rounded(.up) * 256)
+        if let key = screenKey, key.step == step, key.size == size { return screenPath }
+        let r = 0.75
+        var dots = Path()
+        var y = -step
+        while y < size.height + step {
+            var x = -step
+            while x < size.width + step {
+                dots.addEllipse(in: CGRect(x: x - r, y: y - r, width: 2 * r, height: 2 * r))
+                x += step
+            }
+            y += step
+        }
+        screenKey = (step, size)
+        screenPath = dots
+        return dots
+    }
 }
 
 /// Brings the whole graph back in view after panning or zooming: a round button in the corner.
