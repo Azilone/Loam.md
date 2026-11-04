@@ -78,7 +78,7 @@ final class CLITests: XCTestCase {
         let result = await CLI.execute(try CLI.parse(["list"]), kernel: kernel)
         XCTAssertEqual(result.exitCode, 0)
         let ids = try JSONDecoder().decode([[String: String]].self, from: Data(result.stdout.utf8)).map { $0["id"] }
-        XCTAssertEqual(ids, ["daily.append", "daily.ensure", "daily.list", "daily.path", "daily.prepend", "daily.read"])
+        XCTAssertEqual(ids, ["daily.append", "daily.ensure", "daily.list", "daily.path", "daily.prepend", "daily.read", "daily.reorganize"])
     }
 
     func testListKeepsTheMatchingCommandsAndHasABriefForm() async throws {
@@ -86,7 +86,7 @@ final class CLITests: XCTestCase {
         let ids = try JSONDecoder().decode([[String: String]].self, from: Data(matching.stdout.utf8)).map { $0["id"] }
         XCTAssertEqual(ids, ["daily.prepend"])
         let brief = await CLI.execute(try CLI.parse(["list", "--brief"]), kernel: kernel)
-        XCTAssertEqual(brief.stdout.split(separator: "\n").count, 6)
+        XCTAssertEqual(brief.stdout.split(separator: "\n").count, 7)
         XCTAssertTrue(brief.stdout.hasPrefix("daily.append  "))
         XCTAssertThrowsError(try CLI.parse(["list", "--json"]))
     }

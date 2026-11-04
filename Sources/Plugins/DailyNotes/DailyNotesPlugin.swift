@@ -11,6 +11,7 @@ public final class DailyNotesPlugin: Plugin {
             description: "A note for each day, in a folder of its own, started from a template.",
             icon: "calendar.day.timeline.left",
             provides: ["daily-notes"],
+            optionalRequires: ["note-graph"],
             permissions: ["vault.read", "vault.write"],
             settings: [
                 SettingDescription(
@@ -21,6 +22,17 @@ public final class DailyNotesPlugin: Plugin {
                     "template", title: "Template",
                     help: "A note whose text starts each new daily note; {{date}} becomes the day.",
                     default: .string(DailyNotesSettings().template)
+                ),
+                SettingDescription(
+                    "subfolders", title: "Subfolders",
+                    help: "Sorts new daily notes into a folder per year, or per year and month. Notes already "
+                        + "written stay where they are and are still found.",
+                    default: .string(DailyNotesSubfolders.none.rawValue),
+                    choices: [
+                        SettingChoice(.string("none"), title: "None"),
+                        SettingChoice(.string("year"), title: "Year (2026)"),
+                        SettingChoice(.string("month"), title: "Year and month (2026/11 November)"),
+                    ]
                 ),
             ]
         )
@@ -106,6 +118,22 @@ public final class DailyNotesPlugin: Plugin {
             let dates = try daily.existingDates(in: arguments["month"])
             let data = try JSONEncoder().encode(dates)
             return String(decoding: data, as: UTF8.self)
+        })
+
+        try context.registerCommand(Command(
+            id: "daily.reorganize",
+            title: "Sort daily notes into subfolders",
+            summary: "Moves every daily note, with its .assets folder, where the Subfolders setting puts it, and "
+                + "rewrites the links to them. Writes to the vault. Returns JSON {moved}: the notes moved."
+        ) { [weak context] _ in
+            let moves = try daily.reorganizationMoves()
+            if let graph = context?.service(.noteGraph) {
+                _ = try graph.move(moves)
+            } else {
+                for (from, to) in moves.sorted(by: { $0.key < $1.key }) { try context?.vault.move(from, to: to) }
+            }
+            context?.emit(DailyNotesLayoutChanged())
+            return try JSON.string(["moved": moves.keys.filter { $0.hasSuffix(".md") }.count])
         })
     }
 }

@@ -20,9 +20,58 @@ final class DailyNotesTests: XCTestCase {
         try? FileManager.default.removeItem(at: root)
     }
 
-    private func daily(now: String = "2026-10-18T12:00:00Z") -> DailyNotes {
+    private func daily(
+        now: String = "2026-10-18T12:00:00Z", subfolders: DailyNotesSubfolders = .none
+    ) -> DailyNotes {
         let date = ISO8601DateFormatter().date(from: now)!
-        return DailyNotes(vault: vault, calendar: calendar, now: { date })
+        return DailyNotes(
+            vault: vault, layout: DailyNotesLayout(subfolders: subfolders), calendar: calendar, now: { date }
+        )
+    }
+
+    func testSubfoldersSortNewNotesByYearOrMonth() throws {
+        XCTAssertEqual(try daily(subfolders: .year).path(for: nil), "Daily/2026/2026-10-18.md")
+        XCTAssertEqual(try daily(subfolders: .month).path(for: nil), "Daily/2026/10 October/2026-10-18.md")
+        XCTAssertEqual(try daily(subfolders: .month).path(for: "2025-01-02"), "Daily/2025/01 January/2025-01-02.md")
+        try daily(subfolders: .month).append("Idea", date: nil)
+        XCTAssertEqual(try vault.read("Daily/2026/10 October/2026-10-18.md"), "Idea\n")
+    }
+
+    func testNotesSortedAnotherWayAreStillFound() throws {
+        try vault.write("Daily/2024-12-07.md", "Flat\n")
+        try vault.write("Daily/2025/2025-03-01.md", "Year\n")
+        try vault.write("Daily/2026/10 October/2026-10-18.md", "Month\n")
+        try vault.write("Daily/Archive/2024-01-01.md", "Not a daily note\n")
+        let notes = daily(subfolders: .month)
+        XCTAssertEqual(try notes.existingDates(in: nil), ["2024-12-07", "2025-03-01", "2026-10-18"])
+        XCTAssertEqual(try notes.existingDates(in: "2025-03"), ["2025-03-01"])
+        XCTAssertEqual(try notes.path(for: "2024-12-07"), "Daily/2024-12-07.md")
+        XCTAssertEqual(try notes.read(date: "2025-03-01"), "Year\n")
+        try notes.append("More", date: "2024-12-07")
+        XCTAssertEqual(try vault.read("Daily/2024-12-07.md"), "Flat\n\nMore\n")
+        XCTAssertFalse(vault.exists("Daily/2024/12 December/2024-12-07.md"))
+    }
+
+    func testReorganizationMovesNotesAndTheirAssets() throws {
+        try vault.write("Daily/2024-12-07.md", "Flat\n")
+        try vault.writeData("Daily/2024-12-07.assets/Image.webp", Data([1]))
+        try vault.write("Daily/2026/10 October/2026-10-18.md", "Already sorted\n")
+        XCTAssertEqual(try daily(subfolders: .month).reorganizationMoves(), [
+            "Daily/2024-12-07.md": "Daily/2024/12 December/2024-12-07.md",
+            "Daily/2024-12-07.assets": "Daily/2024/12 December/2024-12-07.assets",
+        ])
+        XCTAssertEqual(try daily(subfolders: .none).reorganizationMoves(), [
+            "Daily/2026/10 October/2026-10-18.md": "Daily/2026-10-18.md",
+        ])
+    }
+
+    func testOldSettingsReadAsFlat() throws {
+        let data = Data(#"{"folder":"Journal","template":""}"#.utf8)
+        let settings = try JSONDecoder().decode(DailyNotesSettings.self, from: data)
+        XCTAssertEqual(settings.subfolders, .none)
+        XCTAssertEqual(settings.layout.folder, "Journal")
+        let month = try JSONDecoder().decode(DailyNotesSettings.self, from: Data(#"{"subfolders":"month"}"#.utf8))
+        XCTAssertEqual(month.subfolders, .month)
     }
 
     func testPathUsesTodayOrTheGivenDate() throws {
@@ -166,6 +215,7 @@ final class DailyNotesTests: XCTestCase {
         // The plugin manager learns every setting with its default, written or not.
         XCTAssertEqual(kernel.settingsDefault(for: "daily-notes"), .map([
             "folder": .string("Daily"), "template": .string(".loam/templates/daily.md"),
+            "subfolders": .string("none"),
         ]))
         let path = try XCTUnwrap(kernel.commands.command(id: "daily.path"))
         let first = try await path.handler(["date": "2026-03-04"])
