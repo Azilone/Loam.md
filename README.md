@@ -36,6 +36,8 @@ Loam keeps both promises:
 - **Simple by default.** Open it and write. You never see a feature you did not ask for.
 - **Everything else is a plugin.** Tasks, calendar, boards, mind maps, habits, meetings, graph: all bricks
   you can add, change, remove or share.
+- **Capture in one keystroke.** Copy a link, a picture or a PDF, press ⌃⌥Space in any app. Loam saves it to
+  `Saved for later`, then your agent adds a title, a summary, tags and links to related notes.
 - **Your agent builds what is missing.** Describe the feature to Claude Code, Codex or any agent. It writes the
   plugin, tests it and reloads the app.
 - **Your notes stay yours.** Plain Markdown files in a folder on your disk. Readable forever, by any tool, with
@@ -101,6 +103,7 @@ and build new plugins on its own.
 
 ```bash
 loam daily.append text="Met Bob"       # write to today's note
+loam capture.add url="https://…"       # save a link, your agent sorts it
 loam app open "Projects/Moving.md"     # open a note in the app
 loam plugin new habits-plus --ui       # start a plugin with a panel
 loam plugin build habits-plus          # compile it into the vault
