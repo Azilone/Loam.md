@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Pushing the beta or prod branch publishes a release (scripts/auto-release.sh, docs/UPDATES.md). It runs in the
+# background once the push has landed; its log is ~/Library/Logs/Loam/release.log. LOAM_NO_RELEASE=1 skips it.
+# Installed by `git config core.hooksPath scripts/git-hooks`.
+remote="$1"
+root="$(git rev-parse --show-toplevel)"
+zero=0000000000000000000000000000000000000000
+log="$HOME/Library/Logs/Loam/release.log"
+while read -r _ local_sha remote_ref _; do
+  case "$remote_ref" in refs/heads/beta | refs/heads/prod) ;; *) continue ;; esac
+  [ "$local_sha" = "$zero" ] && continue
+  [ -n "${LOAM_NO_RELEASE:-}" ] && continue
+  branch="${remote_ref#refs/heads/}"
+  mkdir -p "$(dirname "$log")"
+  nohup "$root/scripts/auto-release.sh" "$remote" "$branch" "$local_sha" >>"$log" 2>&1 </dev/null &
+  echo "Loam: the $branch release of ${local_sha:0:7} starts once this push lands (log: $log)" >&2
+done
+exit 0

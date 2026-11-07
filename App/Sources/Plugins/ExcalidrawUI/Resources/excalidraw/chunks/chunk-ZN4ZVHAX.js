@@ -1,0 +1,1 @@
+import{b as o}from"./chunk-5WQQVLRT.js";var a,n,f,_=o(()=>{a=Object.defineProperty,n=(r,e)=>a(r,"name",{value:e,configurable:!0}),f=(r,e)=>{for(var t in e)a(r,t,{get:e[t],enumerable:!0})}});export{n as a,f as b,_ as c};

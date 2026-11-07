@@ -1,0 +1,31 @@
+filters:
+  and:
+    - file.folder == "Projects/" + file.basename
+properties:
+  status:
+    type: select
+    options:
+      - Active
+      - Idea
+      - Paused
+      - Done
+  due:
+    type: date
+views:
+  - type: table
+    name: Projets
+    groupBy:
+      property: status
+      direction: ASC
+    order:
+      - file.name
+      - status
+      - due
+  - type: kanban
+    name: Board
+    groupBy:
+      property: status
+      direction: ASC
+    order:
+      - file.name
+      - due

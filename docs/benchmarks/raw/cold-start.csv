@@ -1,0 +1,36 @@
+Loam,0,-1,0
+Loam,1,1941,212
+Loam,2,1544,240
+Loam,3,1533,202
+Loam,4,1506,235
+Loam,5,-1,0
+Loam,6,1645,243
+Loam,7,1469,171
+Loam,8,1494,190
+Loam,9,1494,252
+Loam,10,1438,238
+Obsidian,0,1093,670
+Obsidian,1,535,703
+Obsidian,2,526,575
+Obsidian,3,537,568
+Obsidian,4,533,667
+Obsidian,5,546,648
+Obsidian,6,531,619
+Obsidian,7,552,592
+Obsidian,8,542,590
+Obsidian,9,573,672
+Obsidian,10,563,691
+Notion,0,2705,1615
+Notion,1,597,1516
+Notion,2,589,1540
+Notion,3,592,1469
+Notion,4,592,1462
+Notion,5,587,1402
+Notion,6,584,1355
+Notion,7,596,1528
+Notion,8,586,1538
+Notion,9,591,1465
+Notion,10,591,1530
+MEDIAN Loam: start 1500 ms, memory 224 MB
+MEDIAN Obsidian: start 540 ms, memory 633 MB
+MEDIAN Notion: start 591 ms, memory 1493 MB

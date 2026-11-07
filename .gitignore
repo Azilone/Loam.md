@@ -1,0 +1,11 @@
+.build/
+.swiftpm/
+.DS_Store
+xcuserdata/
+App/build/
+.loam/
+.claude/worktrees/
+*.xcarchive
+dist/
+docs/GTM.md
+docs/GTM-posts.md

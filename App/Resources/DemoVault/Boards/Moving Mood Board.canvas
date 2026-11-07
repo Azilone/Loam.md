@@ -1,0 +1,103 @@
+{
+	"nodes": [
+		{
+			"id": "title",
+			"type": "text",
+			"text": "Mood board · Moving",
+			"x": 0,
+			"y": -200,
+			"width": 900,
+			"height": 120,
+			"fontSize": 57,
+			"styleAttributes": {
+				"border": "invisible"
+			}
+		},
+		{
+			"id": "salon",
+			"type": "text",
+			"text": "**Living room**: light sofa, plants",
+			"x": 0,
+			"y": 0,
+			"width": 260,
+			"height": 200,
+			"color": "3"
+		},
+		{
+			"id": "cuisine",
+			"type": "text",
+			"text": "**Kitchen**: open shelving",
+			"x": 300,
+			"y": 0,
+			"width": 260,
+			"height": 200,
+			"color": "4"
+		},
+		{
+			"id": "chambre",
+			"type": "text",
+			"text": "**Bedroom**: heavy curtains",
+			"x": 600,
+			"y": 0,
+			"width": 260,
+			"height": 200,
+			"color": "2"
+		},
+		{
+			"id": "pill",
+			"type": "text",
+			"text": "Boxes to pack",
+			"x": 0,
+			"y": 240,
+			"width": 260,
+			"height": 100,
+			"color": "5",
+			"styleAttributes": {
+				"shape": "pill"
+			}
+		},
+		{
+			"id": "table",
+			"type": "text",
+			"text": "| Room | Priority |\n|---|---|\n| Living room | High |\n| Kitchen | Medium |\n| Bedroom | Low |",
+			"x": 300,
+			"y": 240,
+			"width": 320,
+			"height": 200
+		},
+		{
+			"id": "proj",
+			"type": "file",
+			"file": "Projects/Moving/Moving.md",
+			"x": 680,
+			"y": 240,
+			"width": 360,
+			"height": 300
+		}
+	],
+	"edges": [
+		{
+			"id": "m1",
+			"fromNode": "salon",
+			"fromSide": "bottom",
+			"toNode": "pill",
+			"toSide": "top"
+		},
+		{
+			"id": "m2",
+			"fromNode": "pill",
+			"fromSide": "right",
+			"toNode": "table",
+			"toSide": "left",
+			"label": "next"
+		},
+		{
+			"id": "m3",
+			"fromNode": "table",
+			"fromSide": "right",
+			"toNode": "proj",
+			"toSide": "left",
+			"label": "tracking"
+		}
+	]
+}

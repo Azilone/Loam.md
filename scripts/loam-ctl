@@ -1,0 +1,284 @@
+#!/usr/bin/env python3
+"""loam-ctl: drives one running Loam instance through its debug socket (debug builds, see scripts/agent-run.sh).
+
+    loam-ctl [-i NAME] COMMAND [ARGS]       NAME: -i, $LOAM_INSTANCE, or the only instance running
+
+Targets (click, hover, press, move, release, drag, scroll) are `X,Y` points of the window in points from its content's
+top-left corner, `id:IDENTIFIER` or `label:TEXT` of an accessibility element (see `ax --find`).
+
+    ping | info | help
+    open PATH [--new-tab|--beside]       a vault-relative note, folder or `scheme:page`
+    type TEXT                            one key press per character; \\n is Return
+    key KEYS... [--repeat N]             cmd+n  return  shift+tab  escape ...
+    click TARGET [--double|--triple] [--mod cmd,shift] [--window settings|sheet]     hover TARGET
+    drag FROM TO     press TARGET     move TARGET     release TARGET
+    scroll TARGET DY [--for MS] [--window settings|sheet]  down by DY points (negative: up); --for: DY per frame for MS, as a trackpad; --cmd holds ⌘ (a canvas zooms)
+    window [W H] [--front] [--live N]    content size in points; --front puts it above other windows (no focus);
+                                         --live: drags the right edge to W in N frames, a real live resize
+    theme light|dark|auto                reduce-motion on|off
+    ax [--depth N] [--find TEXT]         accessibility tree as JSON, or only matching elements with their frames
+    hit TARGET                           the accessibility element, the views and the pointer under a point
+    editor                               text, selection (line/column), scroll and page frames of the editor
+    shot PATH [--layers] [--scale S] [--window settings|sheet|top|id:ID]     PNG of this instance's window (or panel)
+    film PREFIX [--count N] [--interval MS] [--scale S] [--then 'key cmd+t']      PREFIX-00.png ... for an animation
+    run COMMAND [KEY=VALUE...]           a palette command, e.g. run mindmap.open path=Map.md
+    wait MS | quit | raw '{"cmd":...}'
+    script FILE|-                        one command per line (# comments), stops at the first failure
+
+Output is the result as JSON on stdout; a failure prints the error on stderr and exits 1.
+"""
+import glob
+import json
+import os
+import shlex
+import socket
+import sys
+
+BASE = os.environ.get("LOAM_INSTANCES_DIR", "/tmp/loam-instances")
+
+
+class Fail(Exception):
+    pass
+
+
+def target(text, suffix=""):
+    """`300,200`, `id:foo` or `label:Foo` as request parameters."""
+    if text.startswith("id:"):
+        return {"axid" + suffix: text[3:]}
+    if text.startswith("label:"):
+        return {"label" + suffix: text[6:]}
+    try:
+        x, y = text.split(",")
+        return {"x" + suffix: float(x), "y" + suffix: float(y)}
+    except ValueError:
+        raise Fail(f"Not a target: {text!r} (X,Y  id:NAME  label:TEXT)")
+
+
+def take_flag(args, name):
+    if name in args:
+        args.remove(name)
+        return True
+    return False
+
+
+def take_option(args, name):
+    if name in args:
+        i = args.index(name)
+        if i + 1 >= len(args):
+            raise Fail(f"{name} needs a value")
+        value = args[i + 1]
+        del args[i:i + 2]
+        return value
+    return None
+
+
+def need(args, count, usage):
+    if len(args) < count:
+        raise Fail("usage: " + usage)
+
+
+def build(argv):
+    """The request for one command line (a list of words)."""
+    if not argv:
+        raise Fail("no command (try --help)")
+    cmd, args = argv[0], list(argv[1:])
+    if cmd in ("ping", "info", "help", "editor", "quit"):
+        return {"cmd": cmd}
+    if cmd == "raw":
+        need(args, 1, "raw '{\"cmd\": ...}'")
+        return json.loads(args[0])
+    if cmd == "open":
+        placement = "newTab" if take_flag(args, "--new-tab") else "beside" if take_flag(args, "--beside") else "replace"
+        need(args, 1, "open PATH")
+        return {"cmd": "open", "path": args[0], "placement": placement}
+    if cmd == "type":
+        need(args, 1, "type TEXT")
+        return {"cmd": "type", "text": " ".join(args).replace("\\n", "\n")}
+    if cmd == "key":
+        repeat = take_option(args, "--repeat")
+        need(args, 1, "key KEYS...")
+        if len(args) > 1:
+            raise Fail("one key per `key` command; use a script for several")
+        request = {"cmd": "key", "keys": args[0]}
+        if repeat:
+            request["repeat"] = int(repeat)
+        return request
+    if cmd == "click":
+        clicks = 3 if take_flag(args, "--triple") else 2 if take_flag(args, "--double") else 1
+        mods, window = take_option(args, "--mod"), take_option(args, "--window")
+        need(args, 1, "click TARGET")
+        request = {"cmd": "click", "clicks": clicks, **target(args[0])}
+        if mods:
+            request["modifiers"] = mods.split(",")
+        if window:
+            request["window"] = window
+        return request
+    if cmd in ("hover", "press", "move", "release", "hit"):
+        need(args, 1, f"{cmd} TARGET")
+        return {"cmd": cmd, **target(args[0])}
+    if cmd == "drag":
+        need(args, 2, "drag FROM TO")
+        return {"cmd": "drag", **target(args[0]), **target(args[1], "2")}
+    if cmd == "scroll":
+        duration, window, command = take_option(args, "--for"), take_option(args, "--window"), take_flag(args, "--cmd")
+        need(args, 2, "scroll TARGET DY [--for MS] [--cmd] [--window settings|sheet]")
+        request = {"cmd": "scroll", **target(args[0]), "dy": float(args[1])}
+        if command:
+            request["command"] = True
+        if duration:
+            request["for"] = int(duration)
+        if window:
+            request["window"] = window
+        return request
+    if cmd == "window":
+        front, live = take_flag(args, "--front"), take_option(args, "--live")
+        request = {"cmd": "window"}
+        if live:
+            request["live"] = int(live)
+        if front:
+            request["front"] = True
+        if len(args) >= 2:
+            request["width"], request["height"] = float(args[0]), float(args[1])
+        return request
+    if cmd == "theme":
+        need(args, 1, "theme light|dark|auto")
+        return {"cmd": "theme", "value": args[0]}
+    if cmd == "reduce-motion":
+        need(args, 1, "reduce-motion on|off")
+        return {"cmd": "reduce-motion", "value": args[0] in ("on", "true", "1")}
+    if cmd == "ax":
+        depth, find = take_option(args, "--depth"), take_option(args, "--find")
+        request = {"cmd": "ax"}
+        if depth:
+            request["depth"] = int(depth)
+        if find:
+            request["find"] = find
+        return request
+    if cmd in ("shot", "screenshot"):
+        layers, scale, window = take_flag(args, "--layers"), take_option(args, "--scale"), take_option(args, "--window")
+        need(args, 1, "shot PATH")
+        request = {"cmd": "screenshot", "path": os.path.abspath(args[0]), "mode": "layers" if layers else "view"}
+        if scale:
+            request["scale"] = float(scale)
+        if window:
+            request["window"] = window
+        return request
+    if cmd == "film":
+        count, interval = take_option(args, "--count"), take_option(args, "--interval")
+        scale, then = take_option(args, "--scale"), take_option(args, "--then")
+        need(args, 1, "film PREFIX")
+        request = {"cmd": "film", "prefix": os.path.abspath(args[0])}
+        if count:
+            request["count"] = int(count)
+        if interval:
+            request["interval"] = int(interval)
+        if scale:
+            request["scale"] = float(scale)
+        if then:
+            request["then"] = build(shlex.split(then))
+        return request
+    if cmd == "run":
+        need(args, 1, "run COMMAND [KEY=VALUE...]")
+        pairs = dict(a.split("=", 1) for a in args[1:] if "=" in a)
+        return {"cmd": "run", "command": args[0], "args": pairs}
+    if cmd == "wait":
+        need(args, 1, "wait MS")
+        return {"cmd": "wait", "ms": int(args[0])}
+    raise Fail(f"Unknown command {cmd!r} (try --help)")
+
+
+def alive(path):
+    probe = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        probe.connect(path)
+        return True
+    except OSError:
+        return False  # a socket file left by a crashed instance
+    finally:
+        probe.close()
+
+
+def instances():
+    paths = glob.glob(os.path.join(BASE, "*", "ctl.sock"))
+    return sorted(os.path.basename(os.path.dirname(p)) for p in paths if alive(p))
+
+
+def find_instance(name):
+    name = name or os.environ.get("LOAM_INSTANCE")
+    if name:
+        return name
+    running = instances()
+    if len(running) == 1:
+        return running[0]
+    if not running:
+        raise Fail(f"No instance running under {BASE}. Start one: scripts/agent-run.sh NAME")
+    raise Fail("Several instances running (" + ", ".join(running) + "): pass -i NAME or set LOAM_INSTANCE")
+
+
+class Connection:
+    def __init__(self, name):
+        path = os.path.join(BASE, name, "ctl.sock")
+        self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        try:
+            self.sock.connect(path)
+        except OSError as error:
+            raise Fail(f"Cannot connect to instance {name!r} at {path}: {error}. It may have crashed: tail {os.path.join(BASE, name, 'app.log')}")
+        self.file = self.sock.makefile("rwb")
+
+    def send(self, request):
+        self.file.write(json.dumps(request).encode() + b"\n")
+        self.file.flush()
+        line = self.file.readline()
+        if not line:
+            raise Fail("The instance closed the connection.")
+        response = json.loads(line)
+        if not response.get("ok"):
+            raise Fail(response.get("error", "failed"))
+        return response.get("result")
+
+
+def show(result, pretty):
+    if result is None:
+        return
+    print(json.dumps(result, indent=1 if pretty else None, ensure_ascii=False))
+
+
+def main(argv):
+    if not argv or argv[0] in ("-h", "--help"):
+        print(__doc__)
+        return 0
+    name = None
+    if argv[0] == "-i":
+        if len(argv) < 3:
+            raise Fail("-i needs a name")
+        name, argv = argv[1], argv[2:]
+    if argv[0] == "instances":
+        print("\n".join(instances()))
+        return 0
+    pretty = take_flag(argv, "--pretty") or (argv[0] in ("ax", "info", "editor") and sys.stdout.isatty())
+    connection = Connection(find_instance(name))
+    if argv[0] == "script":
+        if len(argv) < 2:
+            raise Fail("usage: script FILE|-")
+        source = sys.stdin if argv[1] == "-" else open(argv[1])
+        for number, line in enumerate(source, 1):
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            try:
+                show(connection.send(build(shlex.split(line))), pretty)
+            except Fail as error:
+                raise Fail(f"line {number} ({line}): {error}")
+        return 0
+    show(connection.send(build(argv)), pretty)
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main(sys.argv[1:]))
+    except Fail as error:
+        print(f"loam-ctl: {error}", file=sys.stderr)
+        sys.exit(1)
+    except (BrokenPipeError, KeyboardInterrupt):
+        sys.exit(1)

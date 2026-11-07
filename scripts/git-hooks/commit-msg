@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Loam's history carries no "Co-Authored-By: Claude" line. Agents add one by default: this drops it (and the
+# "Generated with Claude Code" line) from every commit message. Installed by `git config core.hooksPath scripts/git-hooks`.
+tmp="$(mktemp)"
+grep -viE '^(co-authored-by:[[:space:]]*claude|.*generated with .*claude)' "$1" >"$tmp" || true
+# drop the blank lines the removed trailer leaves at the end
+awk '{ l[NR] = $0 } END { n = NR; while (n > 0 && l[n] == "") n--; for (i = 1; i <= n; i++) print l[i] }' "$tmp" >"$1"
+rm -f "$tmp"
+exit 0
