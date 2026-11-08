@@ -322,6 +322,47 @@ final class FileExplorerUITests: XCTestCase {
         ]), ["A", "A/B"])
     }
 
+    func testAPluginOrdersItsFolderNewestFirst() throws {
+        var files = self.files
+        files["Journal/2025/2025-01-02.md"] = "x"
+        files["Journal/2026/2026-03-04.md"] = "x"
+        files["Journal/2026/2026-11-08.md"] = "x"
+        let harness = try harness(files: files)
+        defer { harness.close() }
+        let model = try model(harness)
+        model.folderOrder = { FolderOrder(orders: ["Journal": .nameDescending]) }
+        model.refresh()
+
+        let journal = try XCTUnwrap(model.items.first { $0.path == "Journal" })
+        XCTAssertEqual(journal.children?.map(\.path), ["Journal/2026", "Journal/2025"], "the newest year first")
+        XCTAssertEqual(
+            journal.children?.first?.children?.map(\.path),
+            ["Journal/2026/2026-11-08.md", "Journal/2026/2026-03-04.md"],
+            "and the newest day first"
+        )
+        XCTAssertEqual(
+            model.cards(for: .folder("Journal/2026")).map(\.path),
+            ["Journal/2026/2026-11-08.md", "Journal/2026/2026-03-04.md"]
+        )
+        XCTAssertEqual(
+            ExplorerModel.sorted([
+                FileNode(path: "a.md", isFolder: false, children: nil),
+                FileNode(path: "B", isFolder: true, children: []),
+            ], by: .nameAscending).map(\.path),
+            ["B", "a.md"],
+            "folders stay before files"
+        )
+
+        // A row the user put in place by hand keeps its place.
+        model.expanded.insert("Journal")
+        model.expanded.insert("Journal/2026")
+        model.place("Journal/2026/2026-03-04.md", beside: "Journal/2026/2026-11-08.md", after: false)
+        XCTAssertEqual(
+            model.rows.filter { $0.item.path.hasPrefix("Journal/2026/") }.map(\.item.path),
+            ["Journal/2026/2026-03-04.md", "Journal/2026/2026-11-08.md"]
+        )
+    }
+
     func testAFolderKeepsTheIconAndColorItIsGivenWhenItMoves() throws {
         let harness = try harness()
         defer { harness.close() }

@@ -61,6 +61,12 @@ public final class DailyNotesPlugin: Plugin {
             if !daily.layout.folder.isEmpty { event.paths.insert(daily.layout.folder) }
             return next(event)
         }
+        // A journal reads newest first: its notes are named after their day, so by name, Z to A.
+        context.intercept(FolderOrder.self) { event, next in
+            var event = event
+            if !daily.layout.folder.isEmpty { event.orders[daily.layout.folder] = .nameDescending }
+            return next(event)
+        }
         context.on(PluginSettingsChanged.self) { [weak context] event in
             guard event.pluginID == id, let context else { return }
             let settings = context.settings.value(default: DailyNotesSettings())
@@ -74,6 +80,7 @@ public final class DailyNotesPlugin: Plugin {
             }
             context.emit(DailyNotesLayoutChanged())
             context.emit(ManagedFoldersChanged())
+            context.emit(FolderOrderChanged())
         }
 
         try context.registerCommand(Command(

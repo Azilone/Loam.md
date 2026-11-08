@@ -365,4 +365,22 @@ final class DailyNotesTests: XCTestCase {
             "every pattern the vault used is remembered, newest first"
         )
     }
+
+    func testADailyFolderIsListedNewestFirst() throws {
+        let config = try ConfigStore(vault: vault)
+        let kernel = Kernel(vault: vault, config: config)
+        let host = PluginHost(kernel: kernel)
+        try host.register(DailyNotesPlugin.self)
+        try host.activateAll()
+        defer { host.deactivateAll() }
+
+        XCTAssertEqual(kernel.events.waterfall(FolderOrder()).order(for: "Journal"), .nameDescending)
+        XCTAssertEqual(kernel.events.waterfall(FolderOrder()).order(for: "Journal/2026/11 November"), .nameDescending)
+        XCTAssertEqual(kernel.events.waterfall(FolderOrder()).order(for: "Notes"), .nameAscending)
+
+        try config.mutate { $0.setSettings(.map(["folder": .string("Diary")]), for: "daily-notes") }
+        kernel.events.emit(PluginSettingsChanged(pluginID: "daily-notes"))
+        XCTAssertEqual(kernel.events.waterfall(FolderOrder()).order(for: "Diary"), .nameDescending)
+        XCTAssertEqual(kernel.events.waterfall(FolderOrder()).order(for: "Journal"), .nameAscending)
+    }
 }

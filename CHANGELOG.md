@@ -7,6 +7,7 @@ How to write it: AGENTS.md, "Releasing an update".
 ## Unreleased
 
 - Choose where daily notes go with your own date pattern: `yyyy/MM MMMM`, `yyyy-MM`, or leave it empty for none.
+- Daily notes read newest first in the Files panel: the latest day, month and year sit at the top of the Journal folder.
 
 ## 0.1.2 - 2026-11-07
 
