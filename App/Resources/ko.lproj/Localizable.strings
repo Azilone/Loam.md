@@ -1356,3 +1356,8 @@
 "by %@" = "%@ 제작";
 "Restart to Update" = "재시작하여 업데이트";
 "Update Loam" = "Loam 업데이트";
+"Subfolders" = "하위 폴더";
+"Folders for new daily notes, written from the day's date: yyyy, MM, MMM, MMMM, dd. Leave it empty for no subfolders. Notes already written stay where they are and are still found." = "새 일일 노트를 넣을 폴더를 날짜로 지정합니다: yyyy, MM, MMM, MMMM, dd. 비워 두면 하위 폴더를 만들지 않습니다. 이미 있는 노트는 그대로 두고 계속 찾습니다.";
+"Year" = "연도";
+"Year and month" = "연도와 월";
+"Preview" = "미리보기";

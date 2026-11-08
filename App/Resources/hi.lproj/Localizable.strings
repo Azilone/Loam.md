@@ -1356,3 +1356,8 @@
 "by %@" = "%@ द्वारा";
 "Restart to Update" = "अपडेट के लिए पुनः आरंभ करें";
 "Update Loam" = "Loam अपडेट करें";
+"Subfolders" = "उपफ़ोल्डर";
+"Folders for new daily notes, written from the day's date: yyyy, MM, MMM, MMMM, dd. Leave it empty for no subfolders. Notes already written stay where they are and are still found." = "नई दैनिक नोट्स के लिए फ़ोल्डर, दिन की तारीख़ से लिखे गए: yyyy, MM, MMM, MMMM, dd। खाली छोड़ने पर कोई उपफ़ोल्डर नहीं। पहले लिखी नोट्स अपनी जगह रहती हैं और मिलती रहती हैं।";
+"Year" = "वर्ष";
+"Year and month" = "वर्ष और माह";
+"Preview" = "पूर्वावलोकन";

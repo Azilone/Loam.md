@@ -25,14 +25,10 @@ public final class DailyNotesPlugin: Plugin {
                 ),
                 SettingDescription(
                     "subfolders", title: "Subfolders",
-                    help: "Sorts new daily notes into a folder per year, or per year and month. Notes already "
-                        + "written stay where they are and are still found.",
-                    default: .string(DailyNotesSettings().subfolders.rawValue),
-                    choices: [
-                        SettingChoice(.string("none"), title: "None"),
-                        SettingChoice(.string("year"), title: "Year (2026)"),
-                        SettingChoice(.string("month"), title: "Year and month (2026/11 November)"),
-                    ]
+                    help: "Folders for new daily notes, written from the day's date: yyyy, MM, MMM, MMMM, dd. "
+                        + "Leave it empty for no subfolders. Notes already written stay where they are and are "
+                        + "still found.",
+                    default: .string(DailyNotesSettings().subfolders.rawValue)
                 ),
             ]
         )
@@ -42,7 +38,17 @@ public final class DailyNotesPlugin: Plugin {
 
     public func activate(context: PluginContext) throws {
         Self.keepLegacyLayout(context)
-        let daily = DailyNotes(vault: context.vault, layout: context.settings.value(default: DailyNotesSettings()).layout)
+        // Every pattern the vault used, the current one included: a note written under an older one is still found.
+        let settings = context.settings.value(default: DailyNotesSettings())
+        var history = DailyPatternHistory.read(context.vault)
+        if history.patterns.first != settings.subfolders.rawValue {
+            history.remember(settings.subfolders.rawValue)
+            history.write(context.vault)
+        }
+        let daily = DailyNotes(
+            vault: context.vault, layout: settings.layout,
+            previousPatterns: history.patterns.map { DailyFolderPattern($0) }
+        )
         try context.provide(.dailyNotes, daily)
         let id = context.pluginID
         context.intercept(FolderIcons.self) { event, next in
@@ -57,7 +63,15 @@ public final class DailyNotesPlugin: Plugin {
         }
         context.on(PluginSettingsChanged.self) { [weak context] event in
             guard event.pluginID == id, let context else { return }
-            daily.layout = context.settings.value(default: DailyNotesSettings()).layout
+            let settings = context.settings.value(default: DailyNotesSettings())
+            let previous = daily.layout.subfolders
+            daily.layout = settings.layout
+            if settings.subfolders != previous {
+                var history = DailyPatternHistory.read(context.vault)
+                history.remember(settings.subfolders.rawValue)
+                history.write(context.vault)
+                daily.previousPatterns = history.patterns.map { DailyFolderPattern($0) }
+            }
             context.emit(DailyNotesLayoutChanged())
             context.emit(ManagedFoldersChanged())
         }

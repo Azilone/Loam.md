@@ -1498,3 +1498,8 @@
 "Choose where the new vault goes." = "Choisis où créer le nouveau coffre.";
 "Restart to Update" = "Redémarrer pour mettre à jour";
 "Update Loam" = "Mettre à jour Loam";
+"Subfolders" = "Sous-dossiers";
+"Folders for new daily notes, written from the day's date: yyyy, MM, MMM, MMMM, dd. Leave it empty for no subfolders. Notes already written stay where they are and are still found." = "Dossiers des nouvelles notes quotidiennes, écrits d'après la date du jour : yyyy, MM, MMM, MMMM, dd. Laissez vide pour aucun sous-dossier. Les notes déjà écrites restent où elles sont et restent trouvées.";
+"Year" = "Année";
+"Year and month" = "Année et mois";
+"Preview" = "Aperçu";

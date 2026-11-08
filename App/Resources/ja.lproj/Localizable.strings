@@ -1356,3 +1356,8 @@
 "by %@" = "作成: %@";
 "Restart to Update" = "再起動してアップデート";
 "Update Loam" = "Loamをアップデート";
+"Subfolders" = "サブフォルダ";
+"Folders for new daily notes, written from the day's date: yyyy, MM, MMM, MMMM, dd. Leave it empty for no subfolders. Notes already written stay where they are and are still found." = "新しいデイリーノートを入れるフォルダを日付で指定します: yyyy、MM、MMM、MMMM、dd。空欄ならサブフォルダを作りません。既にあるノートはそのままで、引き続き見つかります。";
+"Year" = "年";
+"Year and month" = "年月";
+"Preview" = "プレビュー";

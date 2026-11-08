@@ -69,7 +69,7 @@ let package = Package(
             path: "Sources/Plugins/OutlineUI"
         ),
         // Daily notes: today's note (Cmd+D), previous and next, the month calendar (view type and panel).
-        .target(name: "DailyNotesUI", dependencies: ["PluginKitUI"], path: "Sources/Plugins/DailyNotesUI"),
+        .target(name: "DailyNotesUI", dependencies: ["PluginKitUI", runtime], path: "Sources/Plugins/DailyNotesUI"),
         // The Search panel and `search.focus`: names, content and meaning. Uses its logic module.
         .target(
             name: "SearchUI",

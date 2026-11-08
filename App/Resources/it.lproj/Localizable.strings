@@ -1356,3 +1356,8 @@
 "by %@" = "di %@";
 "Restart to Update" = "Riavvia per aggiornare";
 "Update Loam" = "Aggiorna Loam";
+"Subfolders" = "Sottocartelle";
+"Folders for new daily notes, written from the day's date: yyyy, MM, MMM, MMMM, dd. Leave it empty for no subfolders. Notes already written stay where they are and are still found." = "Cartelle delle nuove note giornaliere, scritte dalla data del giorno: yyyy, MM, MMM, MMMM, dd. Lascia vuoto per nessuna sottocartella. Le note già scritte restano dove sono e si trovano ancora.";
+"Year" = "Anno";
+"Year and month" = "Anno e mese";
+"Preview" = "Anteprima";

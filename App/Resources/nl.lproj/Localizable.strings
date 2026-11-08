@@ -1356,3 +1356,8 @@
 "by %@" = "door %@";
 "Restart to Update" = "Herstart om bij te werken";
 "Update Loam" = "Loam bijwerken";
+"Subfolders" = "Submappen";
+"Folders for new daily notes, written from the day's date: yyyy, MM, MMM, MMMM, dd. Leave it empty for no subfolders. Notes already written stay where they are and are still found." = "Mappen voor nieuwe dagelijkse notities, geschreven op basis van de datum van de dag: yyyy, MM, MMM, MMMM, dd. Laat leeg voor geen submappen. Notities die er al zijn blijven staan en worden nog gevonden.";
+"Year" = "Jaar";
+"Year and month" = "Jaar en maand";
+"Preview" = "Voorbeeld";

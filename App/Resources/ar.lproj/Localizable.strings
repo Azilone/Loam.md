@@ -1356,3 +1356,8 @@
 "by %@" = "بواسطة %@";
 "Restart to Update" = "أعد التشغيل للتحديث";
 "Update Loam" = "تحديث Loam";
+"Subfolders" = "المجلدات الفرعية";
+"Folders for new daily notes, written from the day's date: yyyy, MM, MMM, MMMM, dd. Leave it empty for no subfolders. Notes already written stay where they are and are still found." = "مجلدات الملاحظات اليومية الجديدة، مكتوبة من تاريخ اليوم: yyyy، MM، MMM، MMMM، dd. اتركه فارغًا لعدم استخدام مجلدات فرعية. تبقى الملاحظات المكتوبة في مكانها ويُعثر عليها.";
+"Year" = "السنة";
+"Year and month" = "السنة والشهر";
+"Preview" = "معاينة";

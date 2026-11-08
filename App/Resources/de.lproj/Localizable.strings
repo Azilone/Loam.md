@@ -1356,3 +1356,8 @@
 "by %@" = "von %@";
 "Restart to Update" = "Neu starten zum Aktualisieren";
 "Update Loam" = "Loam aktualisieren";
+"Subfolders" = "Unterordner";
+"Folders for new daily notes, written from the day's date: yyyy, MM, MMM, MMMM, dd. Leave it empty for no subfolders. Notes already written stay where they are and are still found." = "Ordner für neue Tagesnotizen, aus dem Datum des Tages gebildet: yyyy, MM, MMM, MMMM, dd. Leer lassen für keine Unterordner. Bereits geschriebene Notizen bleiben, wo sie sind, und werden weiter gefunden.";
+"Year" = "Jahr";
+"Year and month" = "Jahr und Monat";
+"Preview" = "Vorschau";

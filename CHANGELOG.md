@@ -6,6 +6,8 @@ How to write it: AGENTS.md, "Releasing an update".
 
 ## Unreleased
 
+- Choose where daily notes go with your own date pattern: `yyyy/MM MMMM`, `yyyy-MM`, or leave it empty for none.
+
 ## 0.1.2 - 2026-11-07
 
 - Fixed: a board or collection inside a note follows a theme change (light, dark or another theme) at once, card titles included.
