@@ -6,6 +6,9 @@ How to write it: AGENTS.md, "Releasing an update".
 
 ## Unreleased
 
+- Install Loam with a native Mac wizard: it copies the app where you want it, links the `loam` command line and opens your first vault.
+- Fixed: the `loam` command line for Linux could not be built any more (the theme catalogue needed a module Linux keeps apart).
+
 ## 0.1.2 - 2026-11-07
 
 - Fixed: a board or collection inside a note follows a theme change (light, dark or another theme) at once, card titles included.

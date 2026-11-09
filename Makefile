@@ -1,7 +1,7 @@
 # Every target runs Swift through scripts/swift.sh: natively if installed, else in a container.
 # On a Mac, `build` and `test` also cover the app in App/ (macOS 26, native Swift only).
 # Executables live in their own packages (CLI/, App/Executable/) so they link the runtime libraries dynamically.
-.PHONY: dist build test test-fast perf perf-ui release app run dev ps stop-all test-vault example-plugin plugin-api clean
+.PHONY: dist build test test-fast perf perf-ui release app installer run dev ps stop-all test-vault example-plugin plugin-api clean
 
 MACOS := $(filter Darwin,$(shell uname))
 # Builds and tests from every worktree take turns on one machine-wide lock (scripts/build-lock.sh).
@@ -54,6 +54,11 @@ dist:
 # The macOS app, at App/build/Loam.app
 app:
 	./scripts/build-app.sh
+
+# The native macOS installer wizard, at Installer/build/Loam Installer.app, with the app inside it as the payload.
+# A zip and a dmg land in Installer/build/dist/.
+installer:
+	./scripts/build-installer.sh release
 
 # Builds the app and opens it on a vault: make run VAULT=~/TestVault (a missing vault becomes the demo vault)
 # With INSTANCE=name it starts an isolated instance an agent can drive without the screen (own bundle id, preferences,

@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 /// The public list of themes anyone can install by id (docs/THEMES.md): `themes.json` in the community repository,
 /// next to a `themes/<id>.json` file per theme, changed by pull request.

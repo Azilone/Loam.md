@@ -1,0 +1,56 @@
+name: macOS installer
+
+# The native macOS release: the app, and the wizard that installs it. The app itself is built by the `app` job of
+# ci.yml; this workflow builds the release bundle the wizard carries, so a user can install Loam without a terminal.
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "Installer/**"
+      - "scripts/build-installer.sh"
+      - ".github/workflows/macos-installer.yml"
+      - "App/**"
+      - "Sources/**"
+      - "Package.swift"
+      - "Package.resolved"
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  installer:
+    name: Native macOS installer
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Swift version
+        run: swift --version
+
+      - name: Build the app and the wizard
+        env:
+          # A release build carries the update feed and its public key, so the installed app updates itself.
+          LOAM_RELEASE: "1"
+        run: ./scripts/build-installer.sh release
+
+      - name: Check the bundle
+        run: |
+          set -euo pipefail
+          app="Installer/build/Loam Installer.app"
+          codesign --verify --strict "$app"
+          test -x "$app/Contents/MacOS/LoamInstaller"
+          # The payload is the app the wizard installs: it carries the command line and the SDK plugins build against.
+          test -d "$app/Contents/Resources/Payload/Loam.app"
+          test -x "$app/Contents/Resources/Payload/Loam.app/Contents/Helpers/loam"
+          test -d "$app/Contents/Resources/Payload/Loam.app/Contents/Resources/SDK/loam"
+          "$app/Contents/MacOS/LoamInstaller" --version
+
+      - name: Upload the installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Loam-Installer-macOS
+          path: Installer/build/dist/
+          if-no-files-found: error

@@ -3,6 +3,7 @@
 .DS_Store
 xcuserdata/
 App/build/
+Installer/build/
 .loam/
 .claude/worktrees/
 *.xcarchive
