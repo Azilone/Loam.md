@@ -1,3 +1,4 @@
+import DailyNotesPlugin
 import Foundation
 import PluginKitUI
 import SwiftUI

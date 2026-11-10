@@ -70,7 +70,7 @@ final class ExplorerModel {
     /// Writes the favorites to the plugin's settings. Set by the plugin.
     @ObservationIgnored var saveFavorites: @MainActor ([String]) -> Void = { _ in }
     /// The rows the user put in order by dragging, by path: siblings listed here come first, in this order, the
-    /// others after them as the disk sorts them.
+    /// others after them as the folder order shows them.
     var order: [String] = []
     /// Writes `order` to the plugin's settings. Set by the plugin.
     @ObservationIgnored var saveOrder: @MainActor ([String]) -> Void = { _ in }
@@ -118,6 +118,8 @@ final class ExplorerModel {
     @ObservationIgnored var hiddenFolders: @MainActor () -> Set<String> = { [] }
     /// The folders plugins own (`ManagedFolders`: daily notes, habits, projects…). Set by the plugin.
     @ObservationIgnored var managedFolders: @MainActor () -> ManagedFolders = { ManagedFolders() }
+    /// How plugins order the folders they own (`FolderOrder`: the daily notes newest first). Set by the plugin.
+    @ObservationIgnored var folderOrder: @MainActor () -> FolderOrder = { FolderOrder() }
     /// What plugins add to a row's menu ("Turn into Collection"). Set by the plugin.
     @ObservationIgnored var actions: @MainActor (Resource) -> [ResourceAction] = { _ in [] }
     /// Where a rename asked for from a menu outside the panel says it failed.
@@ -387,7 +389,10 @@ final class ExplorerModel {
         let graph = graph().flatMap { ($0 as? NoteGraphLoading)?.isLoaded == false ? nil : $0 }
         switch read.tree {
         case .success(let tree):
-            let newItems = tree.map { Self.item(from: $0, graph: graph) }
+            let order = folderOrder()
+            let newItems = Self.sorted(tree, by: order.order(for: "")).map {
+                Self.item(from: $0, graph: graph, order: order)
+            }
             if newItems != items { items = newItems }
         case .failure(let error):
             show(error)
@@ -407,14 +412,28 @@ final class ExplorerModel {
         }
     }
 
-    private static func item(from node: FileNode, graph: NoteGraphService?) -> Item {
+    private static func item(from node: FileNode, graph: NoteGraphService?, order: FolderOrder) -> Item {
         let kind: Kind = node.isFolder ? .folder : (isNote(node.path) ? .note : .attachment)
         return Item(
             path: node.path,
             name: kind == .note ? noteTitle(node.path, graph: graph) : lastComponent(node.path),
             kind: kind,
-            children: node.children?.filter { !isOwnCollection($0.path, of: node.path) }.map { item(from: $0, graph: graph) }
+            children: node.children.map { children in
+                sorted(children, by: order.order(for: node.path))
+                    .filter { !isOwnCollection($0.path, of: node.path) }
+                    .map { item(from: $0, graph: graph, order: order) }
+            }
         )
+    }
+
+    /// `nodes` as a folder shows them: the folders first, then the files, by name; `order` descending is the same
+    /// the other way. The default is the order `vault.list` gives.
+    static func sorted(_ nodes: [FileNode], by order: FolderOrder.Order) -> [FileNode] {
+        func key(_ node: FileNode) -> (String, String) { (node.path.lowercased(), node.path) }
+        return nodes.sorted { a, b in
+            if a.isFolder != b.isFolder { return a.isFolder }
+            return order == .nameDescending ? key(a) > key(b) : key(a) < key(b)
+        }
     }
 
     nonisolated static func isNote(_ path: String) -> Bool { path.lowercased().hasSuffix(".md") }

@@ -6,25 +6,150 @@ public enum DailyNotesError: Error, Equatable {
     case invalidMonth(String)
 }
 
-/// How daily notes are sorted inside their folder.
-public enum DailyNotesSubfolders: String, Codable, CaseIterable, Sendable {
-    /// `Journal/2026-11-03.md`
-    case none
-    /// `Journal/2026/2026-11-03.md`
-    case year
-    /// `Journal/2026/11 November/2026-11-03.md`, the default
-    case month
+/// The folders a new daily note goes in, written as a template over its day: `yyyy/MM MMMM` gives
+/// `2026/11 November`, `yyyy-MM` gives `2026-11`, and an empty pattern keeps the notes flat. The note itself is
+/// always named after its day (`2026-11-03.md`).
+///
+/// Tokens, in either case: `yyyy` (2026), `yy` (26), `MM` (11), `MMM` (Nov), `MMMM` (November) and `ww` (the week of
+/// the year, W45: the number alone would not say what it is beside a month or a year). Everything else is copied as
+/// it is, so `yyyy/Week ww` gives `2026/Week W45`. There is no day token: a folder per day would hold one note, and
+/// the note is named after its day already. A last part that names a file (`2026-11-03.md`) is dropped, and so are
+/// `.` and `..`: the file name comes from the day.
+public struct DailyFolderPattern: Equatable, Sendable, Codable {
+    /// One folder per year, then one per month name: what new notes get unless the setting says otherwise.
+    public static let month = DailyFolderPattern("yyyy/MM MMMM")
+    /// The notes sit directly in the daily folder.
+    public static let none = DailyFolderPattern("")
+    /// One folder per year.
+    public static let year = DailyFolderPattern("yyyy")
 
-    /// The folders between the daily folder and the note of `day` (`YYYY-MM-DD`), empty for `none`.
-    func components(of day: String) -> [String] {
-        let year = String(day.prefix(4))
-        switch self {
-        case .none: return []
-        case .year: return [year]
-        case .month:
-            let month = Int(day.dropFirst(5).prefix(2)) ?? 1
-            return [year, String(format: "%02d %@", month, Self.monthNames[month - 1])]
+    /// The pattern as written in the settings.
+    public let rawValue: String
+    /// One entry per folder, outermost first, each its tokens.
+    private let components: [[Token]]
+
+    public init(_ template: String) {
+        var parts = template
+            .split(separator: "/", omittingEmptySubsequences: true)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty && $0 != "." && $0 != ".." }
+        if let last = parts.last, last.lowercased().hasSuffix(".md") { parts.removeLast() }
+        rawValue = parts.joined(separator: "/")
+        components = parts.map(Self.parse)
+    }
+
+    /// The value a settings file of an older version holds: `none`, `year` or `month`. Anything else is a pattern
+    /// as it is, so a pattern written by hand reads back unchanged.
+    public init(stored value: String) {
+        switch value {
+        case "none": self.init("")
+        case "year": self.init("yyyy")
+        case "month": self.init("yyyy/MM MMMM")
+        default: self.init(value)
         }
+    }
+
+    public init(from decoder: Decoder) throws {
+        self.init(stored: try decoder.singleValueContainer().decode(String.self))
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
+
+    /// How many folders deep the pattern goes; 0 for a flat layout.
+    var folderCount: Int { components.count }
+
+    /// The folders of `day` (`YYYY-MM-DD`), outermost first; none for a flat layout.
+    func folders(for day: String) -> [String] {
+        let year = Int(day.prefix(4)) ?? 0
+        let month = Int(day.dropFirst(5).prefix(2)) ?? 1
+        let week = Self.weekOfYear(of: day)
+        return components.map { component in
+            component.map { $0.string(year: year, month: month, week: week) }.joined()
+        }
+    }
+
+    /// The week of the year `day` falls in, ISO 8601: the weeks run Monday to Sunday, and week 1 is the one holding
+    /// the first Thursday, so 2022-01-01 is in week 52 of 2021 and 2026-11-10 in week 46.
+    static func weekOfYear(of day: String) -> Int {
+        var calendar = Calendar(identifier: .iso8601)
+        calendar.firstWeekday = 2
+        let parts = day.split(separator: "-").compactMap { Int($0) }
+        guard parts.count == 3,
+              let date = calendar.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2]))
+        else { return 0 }
+        return calendar.component(.weekOfYear, from: date)
+    }
+
+    private enum Token: Equatable, Sendable {
+        case literal(String)
+        case year4
+        case year2
+        case month2
+        case monthShort
+        case monthLong
+        case week2
+
+        func string(year: Int, month: Int, week: Int) -> String {
+            switch self {
+            case .literal(let text): return text
+            case .year4: return String(format: "%04d", year)
+            case .year2: return String(format: "%02d", year % 100)
+            case .month2: return String(format: "%02d", month)
+            case .monthShort: return String(DailyFolderPattern.monthNames[month - 1].prefix(3))
+            case .monthLong: return DailyFolderPattern.monthNames[month - 1]
+            case .week2: return String(format: "W%02d", week)
+            }
+        }
+    }
+
+    private static func parse(_ text: String) -> [Token] {
+        var tokens: [Token] = []
+        var literal = ""
+        func flush() {
+            if !literal.isEmpty { tokens.append(.literal(literal)); literal = "" }
+        }
+        let characters = Array(text)
+        var index = 0
+        // A token starts a word, follows another token, or comes after a separator. Letters around it keep it as
+        // text, so `yyyy/Summer` keeps its folder name while `yyyymm` still reads as two tokens.
+        var followsToken = false
+        while index < characters.count {
+            let rest = String(characters[index...]).uppercased()
+            let startsWord = index == 0 || followsToken || !characters[index - 1].isLetter
+            let token: (Token, Int)?
+            if !startsWord {
+                token = nil
+            } else if rest.hasPrefix("YYYY") {
+                token = (.year4, 4)
+            } else if rest.hasPrefix("MMMM") {
+                token = (.monthLong, 4)
+            } else if rest.hasPrefix("MMM") {
+                token = (.monthShort, 3)
+            } else if rest.hasPrefix("MM") {
+                token = (.month2, 2)
+            } else if rest.hasPrefix("WW") {
+                token = (.week2, 2)
+            } else if rest.hasPrefix("YY") {
+                token = (.year2, 2)
+            } else {
+                token = nil
+            }
+            if let (found, length) = token {
+                flush()
+                tokens.append(found)
+                index += length
+                followsToken = true
+            } else {
+                literal.append(characters[index])
+                index += 1
+                followsToken = false
+            }
+        }
+        flush()
+        return tokens
     }
 
     /// English on purpose: folder names are part of the vault, not of the interface, and must not change with the
@@ -41,20 +166,24 @@ public struct DailyNotesLayout {
     /// Vault path of an optional template. `{{date}}` is replaced by the day (`YYYY-MM-DD`).
     public var templatePath: String
     /// Where a new note goes inside `folder`. Notes already sorted another way are still found.
-    public var subfolders: DailyNotesSubfolders
+    public var subfolders: DailyFolderPattern
+    /// The folder lists its days newest first. Its notes are named after their day, so by name Z to A: the latest
+    /// year, month and day sit at the top.
+    public var newestFirst: Bool
 
     public init(
         folder: String = "Journal", templatePath: String = ".loam/templates/daily.md",
-        subfolders: DailyNotesSubfolders = .month
+        subfolders: DailyFolderPattern = .month, newestFirst: Bool = true
     ) {
         self.folder = folder
         self.templatePath = templatePath
         self.subfolders = subfolders
+        self.newestFirst = newestFirst
     }
 
     /// Where the note of `day` goes in this layout.
-    func path(of day: String, sortedBy subfolders: DailyNotesSubfolders? = nil) -> String {
-        let parts = (folder.isEmpty ? [] : [folder]) + (subfolders ?? self.subfolders).components(of: day) + [day + ".md"]
+    func path(of day: String, sortedBy subfolders: DailyFolderPattern? = nil) -> String {
+        let parts = (folder.isEmpty ? [] : [folder]) + (subfolders ?? self.subfolders).folders(for: day) + [day + ".md"]
         return parts.joined(separator: "/")
     }
 }
@@ -65,27 +194,32 @@ public struct DailyNotesSettings: Codable, Equatable, Sendable {
     public var folder = "Journal"
     /// A note whose text starts each new daily note; empty for none.
     public var template = ".loam/templates/daily.md"
-    /// `none`, `year` or `month`: the folders new notes are sorted into.
-    public var subfolders = DailyNotesSubfolders.month
+    /// The folders new notes are sorted into: `none`, `year`, `month`, or a pattern over the day
+    /// (`yyyy/MM MMMM`, `yyyy-MM`, `yyyy/ww`).
+    public var subfolders = DailyFolderPattern.month
+    /// The daily folder lists its days newest first, rather than by name A to Z.
+    public var newestFirst = true
 
     public init(
         folder: String = "Journal", template: String = ".loam/templates/daily.md",
-        subfolders: DailyNotesSubfolders = .month
+        subfolders: DailyFolderPattern = .month, newestFirst: Bool = true
     ) {
         self.folder = folder
         self.template = template
         self.subfolders = subfolders
+        self.newestFirst = newestFirst
     }
 
-    private enum CodingKeys: String, CodingKey { case folder, template, subfolders }
+    private enum CodingKeys: String, CodingKey { case folder, template, subfolders, newestFirst }
 
     /// A missing key, or a value this version does not know, reads as the default.
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         folder = try container.decodeIfPresent(String.self, forKey: .folder) ?? "Journal"
         template = try container.decodeIfPresent(String.self, forKey: .template) ?? ".loam/templates/daily.md"
-        let raw = try container.decodeIfPresent(String.self, forKey: .subfolders) ?? ""
-        subfolders = DailyNotesSubfolders(rawValue: raw) ?? .month
+        let raw = try container.decodeIfPresent(String.self, forKey: .subfolders) ?? DailyFolderPattern.month.rawValue
+        subfolders = DailyFolderPattern(stored: raw)
+        newestFirst = try container.decodeIfPresent(Bool.self, forKey: .newestFirst) ?? true
     }
 
     /// The layout these settings give: the folder without slashes or spaces around it.
@@ -94,17 +228,19 @@ public struct DailyNotesSettings: Codable, Equatable, Sendable {
         return DailyNotesLayout(
             folder: folder.trimmingCharacters(in: trim),
             templatePath: template.trimmingCharacters(in: .whitespaces),
-            subfolders: subfolders
+            subfolders: subfolders,
+            newestFirst: newestFirst
         )
     }
 }
 
-/// Creates, reads and appends to the note of a given day (`Journal/YYYY/MM Month/YYYY-MM-DD.md`, or flat or in
-/// year folders).
+/// Creates, reads and appends to the note of a given day (`Journal/2026/11 November/2026-11-03.md`, or whatever
+/// the subfolder pattern says).
 public final class DailyNotes: DailyNotesService {
     private let vault: VaultAccess
     private let layoutLock = NSLock()
     private var currentLayout: DailyNotesLayout
+    private var currentPreviousPatterns: [DailyFolderPattern]
     private let now: () -> Date
     private let calendar: Calendar
 
@@ -126,11 +262,13 @@ public final class DailyNotes: DailyNotesService {
     public init(
         vault: VaultAccess,
         layout: DailyNotesLayout = DailyNotesLayout(),
+        previousPatterns: [DailyFolderPattern] = [],
         calendar: Calendar = .current,
         now: @escaping () -> Date = Date.init
     ) {
         self.vault = vault
         currentLayout = layout
+        currentPreviousPatterns = previousPatterns
         self.calendar = calendar
         self.now = now
     }
@@ -145,6 +283,39 @@ public final class DailyNotes: DailyNotesService {
     /// The folder of daily notes, from the vault's root; empty for the root itself.
     public var folder: String { layout.folder }
 
+    /// The folders new notes go in, as written in the settings.
+    public var subfolderPattern: String { layout.subfolders.rawValue }
+
+    /// The patterns this vault used before the one in the settings: notes written under them are still found.
+    public var previousPatterns: [DailyFolderPattern] {
+        get {
+            layoutLock.lock()
+            defer { layoutLock.unlock() }
+            return currentPreviousPatterns
+        }
+        set {
+            layoutLock.lock()
+            defer { layoutLock.unlock() }
+            currentPreviousPatterns = newValue
+        }
+    }
+
+    /// Where the note of `day` may be besides where this layout puts it: the layouts older versions wrote, and the
+    /// patterns this vault used before. A note keeps being found after the pattern changes.
+    private func otherPaths(of day: String) -> [String] {
+        let layout = layout
+        let preferred = layout.path(of: day)
+        var seen: Set<String> = []
+        return ([DailyFolderPattern.none, .year, .month] + previousPatterns)
+            .map { layout.path(of: day, sortedBy: $0) }
+            .filter { $0 != preferred && seen.insert($0).inserted }
+    }
+
+    /// Where a note created for `date` would go, whether or not one is there yet.
+    public func newNotePath(for date: String?) throws -> String {
+        layout.path(of: try day(date))
+    }
+
     /// The path the note of `date` has, whether or not it exists yet: where it already is when it was sorted another
     /// way (before the setting changed), else where the layout puts it.
     public func path(for date: String?) throws -> String {
@@ -152,10 +323,7 @@ public final class DailyNotes: DailyNotesService {
         let layout = layout
         let preferred = layout.path(of: day)
         if vault.exists(preferred) { return preferred }
-        for other in DailyNotesSubfolders.allCases where other != layout.subfolders {
-            let path = layout.path(of: day, sortedBy: other)
-            if vault.exists(path) { return path }
-        }
+        for path in otherPaths(of: day) where vault.exists(path) { return path }
         return preferred
     }
 
@@ -218,9 +386,9 @@ public final class DailyNotes: DailyNotesService {
     }
 
     /// The days with a note in the daily folder, sorted: files named `YYYY-MM-DD.md` that are valid dates, in
-    /// `month` (`YYYY-MM`) or in any month when it is nil. Notes are found at the path any `DailyNotesSubfolders`
-    /// gives them, so a vault half sorted one way and half another still shows every day. An absent folder means no
-    /// notes.
+    /// `month` (`YYYY-MM`) or in any month when it is nil. Notes are found at the path the pattern gives them and
+    /// at the ones older versions wrote, so a vault half sorted one way and half another still shows every day. An
+    /// absent folder means no notes.
     public func existingDates(in month: String?) throws -> [String] {
         if let month, month.range(of: "^\\d{4}-(0[1-9]|1[0-2])$", options: .regularExpression) == nil {
             throw DailyNotesError.invalidMonth(month)
@@ -248,7 +416,8 @@ public final class DailyNotes: DailyNotesService {
     private func notes() throws -> [String: String] {
         let layout = layout
         var found: [String: String] = [:]
-        // Two levels at most: a year folder, then a month folder.
+        // As deep as the pattern goes, and always two levels for the layouts older versions wrote.
+        let depth = max(layout.subfolders.folderCount, 2)
         var folders = [(path: layout.folder, depth: 0)]
         while let next = folders.popLast() {
             let entries: [VaultEntry]
@@ -259,15 +428,15 @@ public final class DailyNotes: DailyNotesService {
             }
             for entry in entries {
                 if entry.isFolder {
-                    if next.depth < 2 { folders.append((entry.path, next.depth + 1)) }
+                    if next.depth < depth { folders.append((entry.path, next.depth + 1)) }
                     continue
                 }
                 let name = entry.path.split(separator: "/").last.map(String.init) ?? entry.path
                 guard name.hasSuffix(".md") else { continue }
                 let day = String(name.dropLast(3))
                 guard Self.isValid(day) else { continue }
-                // Only where some layout would put it: `Daily/Archive/2024-01-01.md` is not a daily note.
-                guard DailyNotesSubfolders.allCases.contains(where: { layout.path(of: day, sortedBy: $0) == entry.path })
+                // Only where this layout or an older one would put it: `Daily/Archive/2024-01-01.md` is not a daily note.
+                guard entry.path == layout.path(of: day) || otherPaths(of: day).contains(entry.path)
                 else { continue }
                 if found[day] == nil || entry.path == layout.path(of: day) { found[day] = entry.path }
             }

@@ -22,6 +22,11 @@ public struct SettingField: Codable, Identifiable, Equatable, Sendable {
     public var isWholeNumber: Bool
     /// A text setting naming a vault folder, from the plugin's `SettingDescription`.
     public var isFolder = false
+    /// A setting whose choices are drawn as chips beside the field, from the plugin's `SettingDescription`.
+    public var chips = false
+    /// The command the page runs with the value typed to get a line for under the field, from the plugin's
+    /// `SettingDescription`; empty for none.
+    public var preview = ""
 
     public init(key: String, value: JSONValue, defaultValue: JSONValue? = nil, title: String? = nil, help: String = "",
                 choices: [SettingChoice] = [], isDefault: Bool = false, isWholeNumber: Bool = false) {
@@ -110,6 +115,8 @@ extension Runtime {
                 field.help = description.help
                 field.choices = description.choices
                 field.isFolder = description.isFolder
+                field.chips = description.chips
+                field.preview = description.preview
             }
             return field
         }

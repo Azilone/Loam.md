@@ -68,6 +68,7 @@ public final class FileExplorerUIPlugin: UIPlugin {
         model.hiddenFolders = { [weak context] in context?.waterfall(HiddenFolders()).paths ?? [] }
         model.quickPick = { [weak context] in context?.quickPick }
         model.managedFolders = { [weak context] in context?.waterfall(ManagedFolders()) ?? ManagedFolders() }
+        model.folderOrder = { [weak context] in context?.waterfall(FolderOrder()) ?? FolderOrder() }
         // The panel has its own Rename, in place in the row.
         model.actions = { [weak context] in
             context?.service(.resourceActions)?.actions(for: $0).filter { $0.id != Self.renameActionID } ?? []
@@ -224,6 +225,9 @@ public final class FileExplorerUIPlugin: UIPlugin {
             MainThread.run { model?.refresh() }
         }
         context.on(ManagedFoldersChanged.self) { [weak model] _ in
+            MainThread.run { model?.refresh() }
+        }
+        context.on(FolderOrderChanged.self) { [weak model] _ in
             MainThread.run { model?.refresh() }
         }
         context.on(ActiveResourceChanged.self) { [weak model] event in

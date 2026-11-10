@@ -25,14 +25,24 @@ public final class DailyNotesPlugin: Plugin {
                 ),
                 SettingDescription(
                     "subfolders", title: "Subfolders",
-                    help: "Sorts new daily notes into a folder per year, or per year and month. Notes already "
-                        + "written stay where they are and are still found.",
+                    help: "Folders for new daily notes, written from the day's date: yyyy, yy, MM, MMM, MMMM, ww "
+                        + "(the week, W45). Leave it empty for no subfolders. Notes already written stay where they "
+                        + "are and are still found.",
                     default: .string(DailyNotesSettings().subfolders.rawValue),
                     choices: [
-                        SettingChoice(.string("none"), title: "None"),
-                        SettingChoice(.string("year"), title: "Year (2026)"),
-                        SettingChoice(.string("month"), title: "Year and month (2026/11 November)"),
-                    ]
+                        SettingChoice(.string(""), title: "None"),
+                        SettingChoice(.string("yyyy"), title: "yyyy"),
+                        SettingChoice(.string("yyyy/MM MMMM"), title: "yyyy/MM MMMM"),
+                        SettingChoice(.string("yyyy/ww"), title: "yyyy/ww"),
+                        SettingChoice(.string("yyyy-MM"), title: "yyyy-MM"),
+                    ],
+                    chips: true,
+                    preview: "daily.path-preview"
+                ),
+                SettingDescription(
+                    "newestFirst", title: "Newest first",
+                    help: "The latest day, month and year at the top of the folder.",
+                    default: .bool(DailyNotesSettings().newestFirst)
                 ),
             ]
         )
@@ -42,7 +52,17 @@ public final class DailyNotesPlugin: Plugin {
 
     public func activate(context: PluginContext) throws {
         Self.keepLegacyLayout(context)
-        let daily = DailyNotes(vault: context.vault, layout: context.settings.value(default: DailyNotesSettings()).layout)
+        // Every pattern the vault used, the current one included: a note written under an older one is still found.
+        let settings = context.settings.value(default: DailyNotesSettings())
+        var history = DailyPatternHistory.read(context.vault)
+        if history.patterns.first != settings.subfolders.rawValue {
+            history.remember(settings.subfolders.rawValue)
+            history.write(context.vault)
+        }
+        let daily = DailyNotes(
+            vault: context.vault, layout: settings.layout,
+            previousPatterns: history.patterns.map { DailyFolderPattern($0) }
+        )
         try context.provide(.dailyNotes, daily)
         let id = context.pluginID
         context.intercept(FolderIcons.self) { event, next in
@@ -55,11 +75,28 @@ public final class DailyNotesPlugin: Plugin {
             if !daily.layout.folder.isEmpty { event.paths.insert(daily.layout.folder) }
             return next(event)
         }
+        // A journal reads newest first by default: its notes are named after their day, so by name, Z to A.
+        context.intercept(FolderOrder.self) { event, next in
+            var event = event
+            if !daily.layout.folder.isEmpty {
+                event.orders[daily.layout.folder] = daily.layout.newestFirst ? .nameDescending : .nameAscending
+            }
+            return next(event)
+        }
         context.on(PluginSettingsChanged.self) { [weak context] event in
             guard event.pluginID == id, let context else { return }
-            daily.layout = context.settings.value(default: DailyNotesSettings()).layout
+            let settings = context.settings.value(default: DailyNotesSettings())
+            let previous = daily.layout.subfolders
+            daily.layout = settings.layout
+            if settings.subfolders != previous {
+                var history = DailyPatternHistory.read(context.vault)
+                history.remember(settings.subfolders.rawValue)
+                history.write(context.vault)
+                daily.previousPatterns = history.patterns.map { DailyFolderPattern($0) }
+            }
             context.emit(DailyNotesLayoutChanged())
             context.emit(ManagedFoldersChanged())
+            context.emit(FolderOrderChanged())
         }
 
         try context.registerCommand(Command(
@@ -69,6 +106,22 @@ public final class DailyNotesPlugin: Plugin {
             isInPalette: false
         ) { arguments in
             try daily.path(for: arguments["date"])
+        })
+
+        // The settings page calls this with the pattern being typed, to show where today's note would go before the
+        // value is saved: the same pattern the plugin will use, resolved the same way.
+        try context.registerCommand(Command(
+            id: "daily.path-preview",
+            title: "Where a pattern puts the daily note",
+            summary: "Where today's daily note goes with a subfolder pattern, without saving it. Argument: value "
+                + "(the pattern); optional: date.",
+            isInPalette: false
+        ) { arguments in
+            let pattern = DailyFolderPattern(arguments["value"] ?? "")
+            let day = try daily.day(arguments["date"])
+            let folder = daily.folder
+            let parts = (folder.isEmpty ? [] : [folder]) + pattern.folders(for: day) + [day + ".md"]
+            return parts.joined(separator: "/")
         })
 
         try context.registerCommand(Command(

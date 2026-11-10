@@ -22,7 +22,7 @@ public struct PluginSDKVersion: Hashable, Sendable, Comparable, CustomStringConv
     /// This SDK. Emitted into every module that reads it, so a plugin carries the version it was compiled against.
     /// `scripts/check-plugin-api.sh` reads the two numbers from this line.
     @_alwaysEmitIntoClient
-    public static var current: PluginSDKVersion { PluginSDKVersion(major: 2, minor: 11) }
+    public static var current: PluginSDKVersion { PluginSDKVersion(major: 2, minor: 13) }
 
     public static func < (lhs: PluginSDKVersion, rhs: PluginSDKVersion) -> Bool {
         (lhs.major, lhs.minor) < (rhs.major, rhs.minor)

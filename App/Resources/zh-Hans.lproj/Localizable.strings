@@ -1356,3 +1356,10 @@
 "by %@" = "作者：%@";
 "Restart to Update" = "重新启动以更新";
 "Update Loam" = "更新 Loam";
+"Subfolders" = "子文件夹";
+"Folders for new daily notes, written from the day's date: yyyy, yy, MM, MMM, MMMM, ww (the week, W45). Leave it empty for no subfolders. Notes already written stay where they are and are still found." = "新建每日笔记放入的文件夹，用日期书写：yyyy、yy、MM、MMM、MMMM、ww（周，W45）。留空则不分子文件夹。已经写好的笔记留在原处，仍会被找到。";
+"Year" = "年";
+"Year and month" = "年和月";
+"Preview" = "预览";
+"Newest first" = "最新在前";
+"The latest day, month and year at the top of the folder." = "最新的日、月、年排在文件夹顶部。";
