@@ -1771,10 +1771,35 @@ final class EditorTextView: NSTextView {
         return found
     }
 
-    /// The value of `key` under `point`, and the range it covers.
-    private func hit<Value>(_ key: NSAttributedString.Key, at point: NSPoint) -> (Value, NSRange)? {
+    /// The value of `key` on the character under `point`, and the range it covers.
+    func hit<Value>(_ key: NSAttributedString.Key, at point: NSPoint) -> (Value, NSRange)? {
         let index = characterIndexForInsertion(at: point)
-        return attributeRun(key, at: index) ?? attributeRun(key, at: index - 1)
+        if let run: (Value, NSRange) = attributeRun(key, at: index) { return run }
+        // A click on a character's right half puts the caret after it: the character before the caret is the one under
+        // the pointer, when the pointer is over its room. Beside the text (past a line's last character, under the
+        // note's last line) it is over none, and must not open what merely ends there: an address ending its line
+        // opened from a click in the empty room after it, once the space typed after the link was not saved.
+        let before = index - 1
+        guard covers(before, point), let run: (Value, NSRange) = attributeRun(key, at: before) else { return nil }
+        return run
+    }
+
+    /// Whether `point` is over the room the character at `index` takes on its line, not merely nearest to it: as wide
+    /// as the character draws (a hidden one's room being the kern the styling gives it, which is where its chip is
+    /// drawn) and as tall as the line, so that a task's box, drawn larger than its characters, still takes a click.
+    private func covers(_ index: Int, _ point: NSPoint) -> Bool {
+        guard index >= 0, let storage = textStorage, index < storage.length else { return false }
+        let range = NSRange(location: index, length: 1)
+        var box = rect(for: range) ?? .zero
+        if box.width < 1, let room = storage.attribute(.kern, at: index, effectiveRange: nil) as? CGFloat, room > 0 {
+            box.size.width = room
+        }
+        guard box.width > 0 else { return false }
+        if let line = lineBox(for: range) {
+            box.origin.y = line.minY
+            box.size.height = line.height
+        }
+        return box.insetBy(dx: -1, dy: 0).contains(point)
     }
 
     /// The value of `key` on the character at `index`, and the whole run it covers.
