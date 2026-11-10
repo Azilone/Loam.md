@@ -6,6 +6,8 @@ How to write it: AGENTS.md, "Releasing an update".
 
 ## Unreleased
 
+- Fixed: a click in the empty space after a link opens nothing; only a click on the link itself opens it.
+
 ## 0.1.2 - 2026-11-07
 
 - Fixed: a board or collection inside a note follows a theme change (light, dark or another theme) at once, card titles included.
