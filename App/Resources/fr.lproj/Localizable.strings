@@ -1499,7 +1499,9 @@
 "Restart to Update" = "Redémarrer pour mettre à jour";
 "Update Loam" = "Mettre à jour Loam";
 "Subfolders" = "Sous-dossiers";
-"Folders for new daily notes, written from the day's date: yyyy, MM, MMM, MMMM, dd. Leave it empty for no subfolders. Notes already written stay where they are and are still found." = "Dossiers des nouvelles notes quotidiennes, écrits d'après la date du jour : yyyy, MM, MMM, MMMM, dd. Laissez vide pour aucun sous-dossier. Les notes déjà écrites restent où elles sont et restent trouvées.";
+"Folders for new daily notes, written from the day's date: yyyy, yy, MM, MMM, MMMM, ww (the week, W45). Leave it empty for no subfolders. Notes already written stay where they are and are still found." = "Dossiers des nouvelles notes quotidiennes, écrits à partir de la date du jour : yyyy, yy, MM, MMM, MMMM, ww (la semaine, W45). Laissez vide pour aucun sous-dossier. Les notes déjà écrites restent où elles sont et sont toujours trouvées.";
 "Year" = "Année";
 "Year and month" = "Année et mois";
 "Preview" = "Aperçu";
+"Newest first" = "Plus récent d'abord";
+"The latest day, month and year at the top of the folder." = "Le jour, le mois et l'année les plus récents en haut du dossier.";

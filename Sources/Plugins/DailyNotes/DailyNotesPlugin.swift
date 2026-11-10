@@ -25,10 +25,24 @@ public final class DailyNotesPlugin: Plugin {
                 ),
                 SettingDescription(
                     "subfolders", title: "Subfolders",
-                    help: "Folders for new daily notes, written from the day's date: yyyy, MM, MMM, MMMM, dd. "
-                        + "Leave it empty for no subfolders. Notes already written stay where they are and are "
-                        + "still found.",
-                    default: .string(DailyNotesSettings().subfolders.rawValue)
+                    help: "Folders for new daily notes, written from the day's date: yyyy, yy, MM, MMM, MMMM, ww "
+                        + "(the week, W45). Leave it empty for no subfolders. Notes already written stay where they "
+                        + "are and are still found.",
+                    default: .string(DailyNotesSettings().subfolders.rawValue),
+                    choices: [
+                        SettingChoice(.string(""), title: "None"),
+                        SettingChoice(.string("yyyy"), title: "yyyy"),
+                        SettingChoice(.string("yyyy/MM MMMM"), title: "yyyy/MM MMMM"),
+                        SettingChoice(.string("yyyy/ww"), title: "yyyy/ww"),
+                        SettingChoice(.string("yyyy-MM"), title: "yyyy-MM"),
+                    ],
+                    chips: true,
+                    preview: "daily.path-preview"
+                ),
+                SettingDescription(
+                    "newestFirst", title: "Newest first",
+                    help: "The latest day, month and year at the top of the folder.",
+                    default: .bool(DailyNotesSettings().newestFirst)
                 ),
             ]
         )
@@ -61,10 +75,12 @@ public final class DailyNotesPlugin: Plugin {
             if !daily.layout.folder.isEmpty { event.paths.insert(daily.layout.folder) }
             return next(event)
         }
-        // A journal reads newest first: its notes are named after their day, so by name, Z to A.
+        // A journal reads newest first by default: its notes are named after their day, so by name, Z to A.
         context.intercept(FolderOrder.self) { event, next in
             var event = event
-            if !daily.layout.folder.isEmpty { event.orders[daily.layout.folder] = .nameDescending }
+            if !daily.layout.folder.isEmpty {
+                event.orders[daily.layout.folder] = daily.layout.newestFirst ? .nameDescending : .nameAscending
+            }
             return next(event)
         }
         context.on(PluginSettingsChanged.self) { [weak context] event in
@@ -90,6 +106,22 @@ public final class DailyNotesPlugin: Plugin {
             isInPalette: false
         ) { arguments in
             try daily.path(for: arguments["date"])
+        })
+
+        // The settings page calls this with the pattern being typed, to show where today's note would go before the
+        // value is saved: the same pattern the plugin will use, resolved the same way.
+        try context.registerCommand(Command(
+            id: "daily.path-preview",
+            title: "Where a pattern puts the daily note",
+            summary: "Where today's daily note goes with a subfolder pattern, without saving it. Argument: value "
+                + "(the pattern); optional: date.",
+            isInPalette: false
+        ) { arguments in
+            let pattern = DailyFolderPattern(arguments["value"] ?? "")
+            let day = try daily.day(arguments["date"])
+            let folder = daily.folder
+            let parts = (folder.isEmpty ? [] : [folder]) + pattern.folders(for: day) + [day + ".md"]
+            return parts.joined(separator: "/")
         })
 
         try context.registerCommand(Command(

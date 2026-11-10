@@ -42,30 +42,6 @@ public final class DailyNotesUIPlugin: UIPlugin {
         model.activeChanged(context.workspace?.activeResource)
         try context.provide(Self.modelKey, model)
 
-        // The subfolder pattern has its own field, its presets and where today's note falls. The page folds a
-        // plugin's generic settings under "Advanced settings" as soon as it draws a section, so Folder and Template
-        // move there too; another provider of `daily-notes` keeps its own settings, and then the generic fields are
-        // the way in.
-        if let daily = service as? DailyNotes {
-            let subfolders = SubfoldersSettings(
-                daily: daily, commands: { [weak context] in context?.service(.commands) }
-            )
-            // A change made elsewhere (the CLI, the generic field) shows in the section too.
-            context.on(PluginSettingsChanged.self) { [weak subfolders] event in
-                guard event.pluginID == "daily-notes" else { return }
-                MainThread.run { subfolders?.refresh() }
-            }
-            context.on(DailyNotesLayoutChanged.self) { [weak subfolders] _ in
-                MainThread.run { subfolders?.refresh() }
-            }
-            try context.addSettingsSection(SettingsSection(
-                id: "daily-notes.subfolders", pluginID: "daily-notes", title: "Subfolders",
-                subtitle: "Folders for new daily notes, written from the day's date: yyyy, MM, MMM, MMMM, dd. "
-                    + "Leave it empty for no subfolders. Notes already written stay where they are and are still found.",
-                order: -1
-            ) { AnyView(SubfoldersSettingsView(model: subfolders)) })
-        }
-
         try context.registerView(ViewType(
             id: Self.viewTypeID,
             title: "Calendar",

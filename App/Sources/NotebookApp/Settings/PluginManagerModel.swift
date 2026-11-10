@@ -317,6 +317,17 @@ public final class PluginManagerModel {
         settingsRevision += 1
     }
 
+    /// What `command` answers for a value being typed in a setting, without saving it: the line a field shows under
+    /// itself (`SettingDescription.preview`, the daily notes' "where today's note will go"). Nil when the command is
+    /// not there, or when it refuses the value, and the field then shows nothing rather than an error.
+    public func settingPreview(_ command: String, value: String) async -> String? {
+        guard !command.isEmpty,
+              let registered = session.runtime.kernel.commands.command(id: command) else { return nil }
+        let answer = try? await registered.handler(["value": value])
+        let text = answer?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return text.isEmpty ? nil : text
+    }
+
     /// The plugins with a row of their own in the settings sidebar, by name: the enabled ones that have settings, and
     /// `kept` (the plugin whose page is open, when its row was there) even once it is turned off or loses them.
     public func sidebarPluginIDs(keeping kept: String? = nil) -> [String] {

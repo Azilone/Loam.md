@@ -41,11 +41,29 @@ final class DailyNotesTests: XCTestCase {
         XCTAssertEqual(try daily(subfolders: DailyFolderPattern("yyyy-MM")).path(for: nil), "Daily/2026-10/2026-10-18.md")
         XCTAssertEqual(try daily(subfolders: DailyFolderPattern("yyyy/MMM")).path(for: nil), "Daily/2026/Oct/2026-10-18.md")
         XCTAssertEqual(
-            try daily(subfolders: DailyFolderPattern("yyyy/Week dd")).path(for: "2025-01-02"),
-            "Daily/2025/Week 02/2025-01-02.md"
+            try daily(subfolders: DailyFolderPattern("yyyy/Week ww")).path(for: "2025-01-02"),
+            "Daily/2025/Week W01/2025-01-02.md"
         )
         XCTAssertEqual(try daily(subfolders: DailyFolderPattern("MM/yyyy")).path(for: nil), "Daily/10/2026/2026-10-18.md")
         XCTAssertEqual(try daily(subfolders: DailyFolderPattern("")).path(for: nil), "Daily/2026-10-18.md")
+    }
+
+    func testTheWeekTokenIsTheISOWeeks() throws {
+        // 2026-10-18 is a Sunday, in week 42 of 2026: the weeks run Monday to Sunday.
+        XCTAssertEqual(try daily(subfolders: DailyFolderPattern("yyyy/Week ww")).path(for: nil), "Daily/2026/Week W42/2026-10-18.md")
+        XCTAssertEqual(
+            try daily(subfolders: DailyFolderPattern("yyyy/ww")).path(for: nil), "Daily/2026/W42/2026-10-18.md"
+        )
+        // The year boundary: 2022-01-01 is the Saturday of week 52 of 2021, so the folder still says 2022 (the day's
+        // own year) while the week is 52. Both tokens read from the same day.
+        XCTAssertEqual(
+            try daily(subfolders: DailyFolderPattern("yyyy/ww")).path(for: "2022-01-01"), "Daily/2022/W52/2022-01-01.md"
+        )
+        // A literal around the token keeps the token a token: `ww` on its own already says it is a week, and a word
+        // before it reads as one more prefix.
+        XCTAssertEqual(
+            try daily(subfolders: DailyFolderPattern("Week ww")).path(for: nil), "Daily/Week W42/2026-10-18.md"
+        )
     }
 
     func testAPatternDropsTheFileNameAndDotSegments() throws {
@@ -382,5 +400,34 @@ final class DailyNotesTests: XCTestCase {
         kernel.events.emit(PluginSettingsChanged(pluginID: "daily-notes"))
         XCTAssertEqual(kernel.events.waterfall(FolderOrder()).order(for: "Diary"), .nameDescending)
         XCTAssertEqual(kernel.events.waterfall(FolderOrder()).order(for: "Journal"), .nameAscending)
+    }
+
+    func testTheOrderFollowsTheNewestFirstSetting() throws {
+        let config = try ConfigStore(vault: vault)
+        let kernel = Kernel(vault: vault, config: config)
+        let host = PluginHost(kernel: kernel)
+        try host.register(DailyNotesPlugin.self)
+        try host.activateAll()
+        defer { host.deactivateAll() }
+
+        XCTAssertEqual(kernel.events.waterfall(FolderOrder()).order(for: "Journal"), .nameDescending)
+
+        try config.mutate { $0.setSettings(.map(["newestFirst": .bool(false)]), for: "daily-notes") }
+        kernel.events.emit(PluginSettingsChanged(pluginID: "daily-notes"))
+        XCTAssertEqual(kernel.events.waterfall(FolderOrder()).order(for: "Journal"), .nameAscending)
+
+        try config.mutate { $0.setSettings(.map(["newestFirst": .bool(true)]), for: "daily-notes") }
+        kernel.events.emit(PluginSettingsChanged(pluginID: "daily-notes"))
+        XCTAssertEqual(kernel.events.waterfall(FolderOrder()).order(for: "Journal"), .nameDescending)
+    }
+
+    func testASettingsFileWithoutNewestFirstReadsNewestFirst() throws {
+        let settings = try JSONDecoder().decode(DailyNotesSettings.self, from: Data(#"{"folder":"Diary"}"#.utf8))
+        XCTAssertTrue(settings.newestFirst)
+        XCTAssertTrue(settings.layout.newestFirst)
+
+        let off = try JSONDecoder().decode(DailyNotesSettings.self, from: Data(#"{"newestFirst":false}"#.utf8))
+        XCTAssertFalse(off.newestFirst)
+        XCTAssertFalse(off.layout.newestFirst)
     }
 }

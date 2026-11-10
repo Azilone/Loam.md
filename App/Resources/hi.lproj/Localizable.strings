@@ -1357,7 +1357,9 @@
 "Restart to Update" = "अपडेट के लिए पुनः आरंभ करें";
 "Update Loam" = "Loam अपडेट करें";
 "Subfolders" = "उपफ़ोल्डर";
-"Folders for new daily notes, written from the day's date: yyyy, MM, MMM, MMMM, dd. Leave it empty for no subfolders. Notes already written stay where they are and are still found." = "नई दैनिक नोट्स के लिए फ़ोल्डर, दिन की तारीख़ से लिखे गए: yyyy, MM, MMM, MMMM, dd। खाली छोड़ने पर कोई उपफ़ोल्डर नहीं। पहले लिखी नोट्स अपनी जगह रहती हैं और मिलती रहती हैं।";
+"Folders for new daily notes, written from the day's date: yyyy, yy, MM, MMM, MMMM, ww (the week, W45). Leave it empty for no subfolders. Notes already written stay where they are and are still found." = "नई दैनिक नोट्स के फ़ोल्डर, दिन की तारीख से बने: yyyy, yy, MM, MMM, MMMM, ww (सप्ताह, W45). कोई सबफ़ोल्डर न चाहिए तो खाली छोड़ें। पहले लिखे नोट्स जहाँ हैं वहीं रहते हैं और मिलते रहते हैं।";
 "Year" = "वर्ष";
 "Year and month" = "वर्ष और माह";
 "Preview" = "पूर्वावलोकन";
+"Newest first" = "नवीनतम पहले";
+"The latest day, month and year at the top of the folder." = "सबसे नया दिन, महीना और साल फ़ोल्डर के ऊपर।";

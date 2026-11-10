@@ -10,9 +10,11 @@ public enum DailyNotesError: Error, Equatable {
 /// `2026/11 November`, `yyyy-MM` gives `2026-11`, and an empty pattern keeps the notes flat. The note itself is
 /// always named after its day (`2026-11-03.md`).
 ///
-/// Tokens, in either case: `yyyy` (2026), `yy` (26), `MM` (11), `MMM` (Nov), `MMMM` (November) and `dd` (07).
-/// Everything else is copied as it is, so `yyyy/Week dd` works too. A last part that names a file
-/// (`2026-11-03.md`) is dropped, and so are `.` and `..`: the file name comes from the day.
+/// Tokens, in either case: `yyyy` (2026), `yy` (26), `MM` (11), `MMM` (Nov), `MMMM` (November) and `ww` (the week of
+/// the year, W45: the number alone would not say what it is beside a month or a year). Everything else is copied as
+/// it is, so `yyyy/Week ww` gives `2026/Week W45`. There is no day token: a folder per day would hold one note, and
+/// the note is named after its day already. A last part that names a file (`2026-11-03.md`) is dropped, and so are
+/// `.` and `..`: the file name comes from the day.
 public struct DailyFolderPattern: Equatable, Sendable, Codable {
     /// One folder per year, then one per month name: what new notes get unless the setting says otherwise.
     public static let month = DailyFolderPattern("yyyy/MM MMMM")
@@ -63,10 +65,22 @@ public struct DailyFolderPattern: Equatable, Sendable, Codable {
     func folders(for day: String) -> [String] {
         let year = Int(day.prefix(4)) ?? 0
         let month = Int(day.dropFirst(5).prefix(2)) ?? 1
-        let dayOfMonth = Int(day.suffix(2)) ?? 1
+        let week = Self.weekOfYear(of: day)
         return components.map { component in
-            component.map { $0.string(year: year, month: month, day: dayOfMonth) }.joined()
+            component.map { $0.string(year: year, month: month, week: week) }.joined()
         }
+    }
+
+    /// The week of the year `day` falls in, ISO 8601: the weeks run Monday to Sunday, and week 1 is the one holding
+    /// the first Thursday, so 2022-01-01 is in week 52 of 2021 and 2026-11-10 in week 46.
+    static func weekOfYear(of day: String) -> Int {
+        var calendar = Calendar(identifier: .iso8601)
+        calendar.firstWeekday = 2
+        let parts = day.split(separator: "-").compactMap { Int($0) }
+        guard parts.count == 3,
+              let date = calendar.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2]))
+        else { return 0 }
+        return calendar.component(.weekOfYear, from: date)
     }
 
     private enum Token: Equatable, Sendable {
@@ -76,9 +90,9 @@ public struct DailyFolderPattern: Equatable, Sendable, Codable {
         case month2
         case monthShort
         case monthLong
-        case day2
+        case week2
 
-        func string(year: Int, month: Int, day: Int) -> String {
+        func string(year: Int, month: Int, week: Int) -> String {
             switch self {
             case .literal(let text): return text
             case .year4: return String(format: "%04d", year)
@@ -86,7 +100,7 @@ public struct DailyFolderPattern: Equatable, Sendable, Codable {
             case .month2: return String(format: "%02d", month)
             case .monthShort: return String(DailyFolderPattern.monthNames[month - 1].prefix(3))
             case .monthLong: return DailyFolderPattern.monthNames[month - 1]
-            case .day2: return String(format: "%02d", day)
+            case .week2: return String(format: "W%02d", week)
             }
         }
     }
@@ -116,8 +130,8 @@ public struct DailyFolderPattern: Equatable, Sendable, Codable {
                 token = (.monthShort, 3)
             } else if rest.hasPrefix("MM") {
                 token = (.month2, 2)
-            } else if rest.hasPrefix("DD") {
-                token = (.day2, 2)
+            } else if rest.hasPrefix("WW") {
+                token = (.week2, 2)
             } else if rest.hasPrefix("YY") {
                 token = (.year2, 2)
             } else {
@@ -153,14 +167,18 @@ public struct DailyNotesLayout {
     public var templatePath: String
     /// Where a new note goes inside `folder`. Notes already sorted another way are still found.
     public var subfolders: DailyFolderPattern
+    /// The folder lists its days newest first. Its notes are named after their day, so by name Z to A: the latest
+    /// year, month and day sit at the top.
+    public var newestFirst: Bool
 
     public init(
         folder: String = "Journal", templatePath: String = ".loam/templates/daily.md",
-        subfolders: DailyFolderPattern = .month
+        subfolders: DailyFolderPattern = .month, newestFirst: Bool = true
     ) {
         self.folder = folder
         self.templatePath = templatePath
         self.subfolders = subfolders
+        self.newestFirst = newestFirst
     }
 
     /// Where the note of `day` goes in this layout.
@@ -177,19 +195,22 @@ public struct DailyNotesSettings: Codable, Equatable, Sendable {
     /// A note whose text starts each new daily note; empty for none.
     public var template = ".loam/templates/daily.md"
     /// The folders new notes are sorted into: `none`, `year`, `month`, or a pattern over the day
-    /// (`yyyy/MM MMMM`, `yyyy-MM`, `yyyy/MM/dd`).
+    /// (`yyyy/MM MMMM`, `yyyy-MM`, `yyyy/ww`).
     public var subfolders = DailyFolderPattern.month
+    /// The daily folder lists its days newest first, rather than by name A to Z.
+    public var newestFirst = true
 
     public init(
         folder: String = "Journal", template: String = ".loam/templates/daily.md",
-        subfolders: DailyFolderPattern = .month
+        subfolders: DailyFolderPattern = .month, newestFirst: Bool = true
     ) {
         self.folder = folder
         self.template = template
         self.subfolders = subfolders
+        self.newestFirst = newestFirst
     }
 
-    private enum CodingKeys: String, CodingKey { case folder, template, subfolders }
+    private enum CodingKeys: String, CodingKey { case folder, template, subfolders, newestFirst }
 
     /// A missing key, or a value this version does not know, reads as the default.
     public init(from decoder: Decoder) throws {
@@ -198,6 +219,7 @@ public struct DailyNotesSettings: Codable, Equatable, Sendable {
         template = try container.decodeIfPresent(String.self, forKey: .template) ?? ".loam/templates/daily.md"
         let raw = try container.decodeIfPresent(String.self, forKey: .subfolders) ?? DailyFolderPattern.month.rawValue
         subfolders = DailyFolderPattern(stored: raw)
+        newestFirst = try container.decodeIfPresent(Bool.self, forKey: .newestFirst) ?? true
     }
 
     /// The layout these settings give: the folder without slashes or spaces around it.
@@ -206,7 +228,8 @@ public struct DailyNotesSettings: Codable, Equatable, Sendable {
         return DailyNotesLayout(
             folder: folder.trimmingCharacters(in: trim),
             templatePath: template.trimmingCharacters(in: .whitespaces),
-            subfolders: subfolders
+            subfolders: subfolders,
+            newestFirst: newestFirst
         )
     }
 }

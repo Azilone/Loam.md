@@ -14,7 +14,18 @@ struct SettingFieldRow: View {
     @Environment(\.themeTokens) private var theme
 
     var body: some View {
-        if !field.choices.isEmpty {
+        if !field.choices.isEmpty, field.chips {
+            // Choices short enough to show at once, as chips over a field: a tap writes the value, and the one
+            // matching what is typed is marked. A value typed that is no choice keeps every chip unmarked.
+            VStack(alignment: .leading, spacing: 8) {
+                SettingsRow(title: field.title, detail: field.help)
+                SettingChipRow(model: model, pluginID: pluginID, field: field) { value in
+                    model.updateSetting(field.key, to: value, for: pluginID)
+                }
+                .padding(.horizontal, SettingsStyle.rowPadding)
+                .padding(.bottom, 10)
+            }
+        } else if !field.choices.isEmpty {
             SettingsRow(title: field.title, detail: field.help) {
                 // By position: a setting's values are JSON, which a picker cannot tag.
                 Picker(field.title, selection: Binding(
@@ -112,6 +123,117 @@ private struct DeferredSave {
             guard !Task.isCancelled else { return }
             save()
         }
+    }
+}
+
+/// A setting's choices as chips over its field: a tap writes that choice at once, and the chip whose value is the
+/// one in effect is filled in. The field below takes a value no chip offers, so a setting is never limited to the
+/// shortcuts; what is typed that is no choice leaves every chip unmarked. Under it, what the plugin says the value
+/// will do (`SettingDescription.preview`), for the value typed rather than the one saved.
+struct SettingChipRow: View {
+    let model: PluginManagerModel
+    let pluginID: String
+    let field: SettingField
+    let commit: (JSONValue) -> Void
+    @Environment(\.themeTokens) private var theme
+    @State private var typed: String
+    @State private var preview: String?
+
+    init(model: PluginManagerModel, pluginID: String, field: SettingField, commit: @escaping (JSONValue) -> Void) {
+        self.model = model
+        self.pluginID = pluginID
+        self.field = field
+        self.commit = commit
+        _typed = State(initialValue: Self.text(of: field.value))
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                ForEach(Array(field.choices.enumerated()), id: \.offset) { _, choice in
+                    let isOn = choice.value == field.value
+                    Button {
+                        typed = Self.text(of: choice.value)
+                        commit(choice.value)
+                    } label: {
+                        Text(choice.title.uiLocalized)
+                            .font(.system(size: SettingsStyle.detailSize, design: .monospaced))
+                            .foregroundStyle(isOn ? .white : theme.text.opacity(0.88))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background(isOn ? theme.accent : theme.text.opacity(0.06), in: ThemeCapsule())
+                            .contentShape(ThemeCapsule())
+                    }
+                    .buttonStyle(.press)
+                    .accessibilityAddTraits(isOn ? .isSelected : [])
+                }
+                Spacer(minLength: 0)
+            }
+            SettingChipField(field: field, typed: $typed, commit: commit)
+            if let preview {
+                Text(preview)
+                    .font(.system(size: SettingsStyle.detailSize, design: .monospaced))
+                    .foregroundStyle(theme.secondaryText)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        // A change made elsewhere (a chip, the CLI, another window) shows in the field and the line under it.
+        .onChange(of: field.value) { _, value in
+            if typed != Self.text(of: value) { typed = Self.text(of: value) }
+        }
+        .task(id: typed) { await refreshPreview() }
+    }
+
+    /// The line under the field: what `field.preview` answers for what is typed, after a pause, so typing a pattern
+    /// is not a command per keystroke.
+    private func refreshPreview() async {
+        guard !field.preview.isEmpty else { return }
+        let value = typed
+        try? await Task.sleep(for: .milliseconds(250))
+        guard !Task.isCancelled else { return }
+        let answer = await model.settingPreview(field.preview, value: value)
+        guard !Task.isCancelled else { return }
+        preview = answer
+    }
+
+    static func text(of value: JSONValue) -> String {
+        if case .string(let text) = value { return text }
+        return value == .null ? "" : PluginManagerModel.json(value)
+    }
+}
+
+/// The field under a chip row: what is typed is saved after a pause and when the field is left, and the row above
+/// marks the chip it now matches.
+private struct SettingChipField: View {
+    let field: SettingField
+    @Binding var typed: String
+    let commit: (JSONValue) -> Void
+    @State private var pending: Task<Void, Never>?
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        TextField("", text: $typed)
+            .textFieldStyle(.roundedBorder)
+            .font(.system(size: SettingsStyle.detailSize, design: .monospaced))
+            .focused($isFocused)
+            .onSubmit { save() }
+            .onChange(of: typed) { _, value in
+                if value == SettingChipRow.text(of: field.value) {
+                    pending?.cancel()
+                } else {
+                    DeferredSave.schedule(&pending) { save() }
+                }
+            }
+            .onChange(of: isFocused) { _, focused in if !focused { save() } }
+            .onDisappear { save() }
+    }
+
+    private func save() {
+        pending?.cancel()
+        pending = nil
+        guard typed != SettingChipRow.text(of: field.value) else { return }
+        commit(.string(typed))
     }
 }
 

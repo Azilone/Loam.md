@@ -8,6 +8,7 @@ How to write it: AGENTS.md, "Releasing an update".
 
 - Fixed: a click in the empty space after a link opens nothing; only a click on the link itself opens it.
 - Choose where daily notes go with your own date pattern: `yyyy/MM MMMM`, `yyyy-MM`, or leave it empty for none.
+- The daily notes settings show their subfolder patterns as chips you tap, and list the journal oldest first if you turn "Newest first" off.
 - Daily notes read newest first in the Files panel: the latest day, month and year sit at the top of the Journal folder.
 
 ## 0.1.2 - 2026-11-07

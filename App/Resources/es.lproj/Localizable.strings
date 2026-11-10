@@ -1357,7 +1357,9 @@
 "Restart to Update" = "Reiniciar para actualizar";
 "Update Loam" = "Actualizar Loam";
 "Subfolders" = "Subcarpetas";
-"Folders for new daily notes, written from the day's date: yyyy, MM, MMM, MMMM, dd. Leave it empty for no subfolders. Notes already written stay where they are and are still found." = "Carpetas de las nuevas notas diarias, escritas a partir de la fecha del día: yyyy, MM, MMM, MMMM, dd. Déjalo vacío para no usar subcarpetas. Las notas ya escritas se quedan donde están y se siguen encontrando.";
+"Folders for new daily notes, written from the day's date: yyyy, yy, MM, MMM, MMMM, ww (the week, W45). Leave it empty for no subfolders. Notes already written stay where they are and are still found." = "Carpetas de las nuevas notas diarias, escritas a partir de la fecha del día: yyyy, yy, MM, MMM, MMMM, ww (la semana, W45). Déjalo vacío para no usar subcarpetas. Las notas ya escritas se quedan donde están y se siguen encontrando.";
 "Year" = "Año";
 "Year and month" = "Año y mes";
 "Preview" = "Vista previa";
+"Newest first" = "Más reciente primero";
+"The latest day, month and year at the top of the folder." = "El día, mes y año más recientes al principio de la carpeta.";

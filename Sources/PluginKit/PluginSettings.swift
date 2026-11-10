@@ -57,6 +57,14 @@ public struct SettingDescription: Codable, Sendable, Equatable {
     /// A text setting naming a vault folder: the page offers the vault's folders and says whether the one typed
     /// exists. `"folder": true` in a manifest file.
     public let isFolder: Bool
+    /// A setting with `choices` whose page draws them as chips the user taps, beside a field they can type in: for
+    /// values that are short and worth seeing at once (the daily notes' subfolder pattern). `"chips": true` in a
+    /// manifest file. A setting without choices ignores it.
+    public let chips: Bool
+    /// A command the page runs with `value` (what is typed, before it is saved) to get one line to show under the
+    /// field: what the value will do, worked out by the plugin that knows (`daily.path-preview` says where today's
+    /// note will go). `"preview": "command.id"` in a manifest file. Empty for none.
+    public let preview: String
 
     public init(
         _ key: String, title: String, help: String = "", default defaultValue: JSONValue? = nil,
@@ -69,16 +77,42 @@ public struct SettingDescription: Codable, Sendable, Equatable {
         _ key: String, title: String, help: String = "", default defaultValue: JSONValue? = nil,
         choices: [SettingChoice] = [], folder: Bool
     ) {
+        self.init(key, title: title, help: help, default: defaultValue, choices: choices, folder: folder, chips: false)
+    }
+
+    public init(
+        _ key: String, title: String, help: String = "", default defaultValue: JSONValue? = nil,
+        choices: [SettingChoice] = [], chips: Bool
+    ) {
+        self.init(key, title: title, help: help, default: defaultValue, choices: choices, folder: false, chips: chips)
+    }
+
+    /// Every option at once. The shorter initializers above stay, so a plugin compiled against them keeps running.
+    public init(
+        _ key: String, title: String, help: String = "", default defaultValue: JSONValue? = nil,
+        choices: [SettingChoice] = [], folder: Bool = false, chips: Bool = false, preview: String = ""
+    ) {
         self.key = key
         self.title = title
         self.help = help
         self.defaultValue = defaultValue
         self.choices = choices
         self.isFolder = folder
+        self.chips = chips
+        self.preview = preview
+    }
+
+    /// The one `folder` and `chips` took, kept for plugins compiled against it.
+    public init(
+        _ key: String, title: String, help: String = "", default defaultValue: JSONValue? = nil,
+        choices: [SettingChoice] = [], folder: Bool, chips: Bool
+    ) {
+        self.init(key, title: title, help: help, default: defaultValue, choices: choices,
+                  folder: folder, chips: chips, preview: "")
     }
 
     private enum CodingKeys: String, CodingKey {
-        case key, title, help, choices
+        case key, title, help, choices, chips, preview
         case defaultValue = "default"
         case isFolder = "folder"
     }
@@ -92,6 +126,8 @@ public struct SettingDescription: Codable, Sendable, Equatable {
         defaultValue = try container.decodeIfPresent(JSONValue.self, forKey: .defaultValue)
         choices = try container.decodeIfPresent([SettingChoice].self, forKey: .choices) ?? []
         isFolder = try container.decodeIfPresent(Bool.self, forKey: .isFolder) ?? false
+        chips = try container.decodeIfPresent(Bool.self, forKey: .chips) ?? false
+        preview = try container.decodeIfPresent(String.self, forKey: .preview) ?? ""
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -102,6 +138,8 @@ public struct SettingDescription: Codable, Sendable, Equatable {
         try container.encodeIfPresent(defaultValue, forKey: .defaultValue)
         try container.encode(choices, forKey: .choices)
         if isFolder { try container.encode(true, forKey: .isFolder) }
+        if chips { try container.encode(true, forKey: .chips) }
+        if !preview.isEmpty { try container.encode(preview, forKey: .preview) }
     }
 }
 
