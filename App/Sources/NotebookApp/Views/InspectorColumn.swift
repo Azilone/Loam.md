@@ -18,6 +18,7 @@ struct InspectorColumn: View {
     let panels: [Panel]
 
     @Environment(\.themeTokens) private var theme
+    private static let top = "inspector.top"
 
     var body: some View {
         let tabs = self.tabs()
@@ -46,16 +47,24 @@ struct InspectorColumn: View {
                 .padding(.bottom, 12)
             }
             if let selected {
-                ScrollView {
-                    selected.makeView()
-                        .padding(.horizontal, InspectorStyle.padding)
-                        .padding(.top, 4)
-                        .padding(.bottom, 28)
-                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        selected.makeView()
+                            .padding(.horizontal, InspectorStyle.padding)
+                            .padding(.top, 4)
+                            .padding(.bottom, 28)
+                            .frame(maxWidth: .infinity, alignment: .topLeading)
+                            .id(Self.top)
+                    }
+                    .scrollIndicators(.never)
+                    .softScrollEdges()
+                    // Another resource under the same tab starts at the top.
+                    .onChange(of: follower.tab?.resource) { proxy.scrollTo(Self.top, anchor: .top) }
                 }
-                .scrollIndicators(.never)
-                .softScrollEdges()
-                .id(selected.id + "|" + (follower.tab?.resource.path ?? ""))
+                // Made again for another tab only: from one note to the next the groups are kept and follow their
+                // models. Made again for each resource, the column cost ~45 ms (a daily note's calendar and tasks)
+                // after each note switch.
+                .id(selected.id)
                 .transition(.opacity.animation(Motion.crossfade))
             } else {
                 InspectorColumnEmpty()

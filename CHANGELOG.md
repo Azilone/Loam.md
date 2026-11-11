@@ -6,7 +6,7 @@ How to write it: AGENTS.md, "Releasing an update".
 
 ## Unreleased
 
-- Closing a tab and switching notes are smoother: the right sidebar catches up just after the page changes, and waits while it is closed.
+- Closing a tab and switching notes are smoother: the right sidebar updates in place just after the page changes, and waits while it is closed.
 
 ## 0.1.2 - 2026-11-07
 

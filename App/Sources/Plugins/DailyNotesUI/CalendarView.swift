@@ -11,6 +11,9 @@ struct CalendarView: View {
     /// Called with the month shown after ‹, › or Today, so a tab can save it.
     let onMonthChange: @MainActor (Month) -> Void
     @State private var month: Month
+    /// The month given by the caller: the grid goes back to it when it changes (the right column keeps this view
+    /// from one daily note to the next instead of making it again).
+    private let givenMonth: Month
     @Environment(\.themeTokens) private var theme
 
     init(
@@ -22,6 +25,7 @@ struct CalendarView: View {
         self.model = model
         self.placement = placement
         self.onMonthChange = onMonthChange
+        givenMonth = month
         _month = State(initialValue: month)
     }
 
@@ -49,6 +53,7 @@ struct CalendarView: View {
         }
         .padding(Space.s)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .onChange(of: givenMonth) { _, given in month = given }
     }
 
     private func header(_ title: String) -> some View {
