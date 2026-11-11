@@ -113,6 +113,7 @@ final class ShellRootView: NSView {
     private let split: SplitTreeView
     private let leading: SlidingColumnView<LeadingColumnRoot>
     private let trailing: SlidingColumnView<TrailingColumnRoot>
+    private let inspectorFollower: InspectorFollower
     private let leadingHandle: ColumnResizeHandle
     private let trailingHandle: ColumnResizeHandle
     private let leftSidebarButton = ChromeButton(look: .window, title: "Toggle Left Sidebar", symbol: "sidebar.leading")
@@ -150,7 +151,9 @@ final class ShellRootView: NSView {
             rootView: LeadingColumnRoot(session: session, look: look, actions: actions, openSettings: {}),
             edge: .leading, isShown: chrome.showsLeading
         )
-        trailing = SlidingColumnView(rootView: TrailingColumnRoot(session: session, look: look), edge: .trailing, isShown: chrome.showsTrailing)
+        let follower = InspectorFollower(workspace: session.workspace, isShown: chrome.showsTrailing)
+        inspectorFollower = follower
+        trailing = SlidingColumnView(rootView: TrailingColumnRoot(session: session, look: look, follower: follower), edge: .trailing, isShown: chrome.showsTrailing)
         leadingHandle = ColumnResizeHandle(range: Self.leadingRange, growsRightward: true)
         trailingHandle = ColumnResizeHandle(range: Self.trailingRange, growsRightward: false)
         overlays = OverlayHostingView(rootView: WindowOverlaysRoot(overlays: session.windowOverlays, look: look))
@@ -283,6 +286,7 @@ final class ShellRootView: NSView {
         // False when the change is not the user's (the page they went to has nothing for this column): it then
         // jumps, in the same frame as the pages, instead of sliding out of step with them.
         if new.showsTrailing != old.showsTrailing {
+            inspectorFollower.isShown = new.showsTrailing
             trailing.setShown(new.showsTrailing, reduceMotion: reduceMotion, animated: new.isSliding)
         }
         if new.hasLeading != old.hasLeading || new.showsLeading != old.showsLeading || new.showsTrailing != old.showsTrailing {
@@ -306,7 +310,7 @@ final class ShellRootView: NSView {
     private func lookChanged() {
         canvas.rootView = CanvasRoot(look: look)
         leading.host.rootView = leadingRoot()
-        trailing.host.rootView = TrailingColumnRoot(session: session, look: look)
+        trailing.host.rootView = TrailingColumnRoot(session: session, look: look, follower: inspectorFollower)
         overlays.rootView = WindowOverlaysRoot(overlays: session.windowOverlays, look: look)
         toasts.rootView = ToastRoot(runner: session.commandRunner, look: look)
         palette.theme = look.theme
@@ -517,9 +521,10 @@ struct LeadingColumnRoot: View {
 struct TrailingColumnRoot: View {
     let session: ShellSession
     let look: ShellLook
+    let follower: InspectorFollower
 
     var body: some View {
-        InspectorColumn(session: session, workspace: session.workspace,
+        InspectorColumn(session: session, workspace: session.workspace, follower: follower,
                         panels: session.panelVisibility.shown(session.panels.panels(in: .trailing)))
             .padding(.top, ShellRootView.tabBarTop + TabBar.height + 4)
             .padding(.leading, ColumnResizeHandle.width)

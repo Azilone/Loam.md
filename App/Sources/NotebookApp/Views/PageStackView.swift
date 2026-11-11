@@ -282,7 +282,7 @@ final class PageStackView: NSView {
 
     /// When the app last had a key, a click or a scroll: pages are built ahead only once it has been still for
     /// `idleDelay`, so no build lands under a person's hands.
-    private static var lastInput = ProcessInfo.processInfo.systemUptime
+    private(set) static var lastInput = ProcessInfo.processInfo.systemUptime
     private static var inputMonitor: Any?
     static let idleDelay = 1.0
     private var aheadWork: DispatchWorkItem?
@@ -290,7 +290,8 @@ final class PageStackView: NSView {
     private var recentNotes: [Resource]?
     private var askedRecentNotes = false
 
-    private static func watchInput() {
+    /// Starts noting the app's keys, clicks and scrolls in `lastInput`; once is enough.
+    static func watchInput() {
         guard inputMonitor == nil else { return }
         let kinds: NSEvent.EventTypeMask = [.keyDown, .leftMouseDown, .rightMouseDown, .otherMouseDown, .leftMouseDragged, .scrollWheel]
         inputMonitor = NSEvent.addLocalMonitorForEvents(matching: kinds) { event in

@@ -1,5 +1,7 @@
+import Observation
 import PluginKitUI
 import SwiftUI
+import WorkspaceModel
 
 /// The right sidebar: the inspector of the focused tab, as Craft's. Its tabs are the view's own (a note's "Insert",
 /// a mindmap's "Style"), then "Info", made of the sections plugins add for the resource (and of the right column's
@@ -10,6 +12,8 @@ import SwiftUI
 struct InspectorColumn: View {
     let session: ShellSession
     let workspace: WorkspaceController
+    /// The tab the column describes: the active one, a moment after it changes (`InspectorFollower`).
+    let follower: InspectorFollower
     /// The right column's panels the user shows, drawn as groups of "Info".
     let panels: [Panel]
 
@@ -51,7 +55,7 @@ struct InspectorColumn: View {
                 }
                 .scrollIndicators(.never)
                 .softScrollEdges()
-                .id(selected.id + "|" + (workspace.activeResource?.path ?? ""))
+                .id(selected.id + "|" + (follower.tab?.resource.path ?? ""))
                 .transition(.opacity.animation(Motion.crossfade))
             } else {
                 InspectorColumnEmpty()
@@ -65,9 +69,8 @@ struct InspectorColumn: View {
 
     /// The tabs of the focused tab's resource: the view's and the sections' own, by order, then "Info". Empty without a focused tab.
     private func tabs() -> [InspectorTab] {
-        guard let tab = workspace.layout.activeTab else { return [] }
+        guard let tab = follower.tab, let context = follower.context else { return [] }
         let resource = tab.resource
-        let context = workspace.context(for: tab)
         let viewType = WorkspaceController.viewType(for: tab, in: session.views)
         var viewTabs: [InspectorTab] = []
         if let content = context.inspector, content.viewType == viewType?.id { viewTabs = content.tabs }
@@ -104,6 +107,76 @@ struct InspectorColumn: View {
             })
         }
         return viewTabs
+    }
+}
+
+/// The tab the right column describes: the active tab, followed a moment after it changes rather than in the frame
+/// the page changes in. The column's content is made again for each tab (a daily note's calendar, its tasks: ~45 ms
+/// of SwiftUI), and that was the longest frame of ⌘W, ⌘T and each note switch, under the page's motion. Shown, the
+/// column follows once the page's change is on screen (its motion plays on the render server meanwhile); hidden (it
+/// is never removed, `SlidingColumnView`), only once the app has had no input for a second, so nothing is made
+/// under a person's hands for a column they do not see.
+@MainActor
+@Observable
+final class InspectorFollower {
+    private(set) var tab: WorkspaceModel.Tab?
+    /// The tab's context, taken while the tab was open: a tab closed meanwhile is never asked for a new one.
+    private(set) var context: ViewContext?
+    @ObservationIgnored private weak var workspace: WorkspaceController?
+    @ObservationIgnored private var work: DispatchWorkItem?
+    /// Whether the column is on screen; set by the window as it slides the column in or out.
+    @ObservationIgnored var isShown: Bool {
+        didSet { if isShown != oldValue { schedule() } }
+    }
+
+    /// After a page change, the shown column waits for the page's motion (`PageStackView.crossfade`) to be under way.
+    static let shownDelay = 0.2
+
+    init(workspace: WorkspaceController, isShown: Bool) {
+        self.workspace = workspace
+        self.isShown = isShown
+        PageStackView.watchInput()
+        catchUp(waitingForStill: false)
+        observe()
+    }
+
+    private func observe() {
+        withObservationTracking {
+            _ = workspace?.layout.activeTab
+        } onChange: { [weak self] in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.schedule()
+                self.observe()
+            }
+        }
+    }
+
+    private func schedule(after delay: Double? = nil) {
+        work?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.catchUp(waitingForStill: !self.isShown)
+        }
+        self.work = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + (delay ?? (isShown ? Self.shownDelay : PageStackView.idleDelay)), execute: work)
+    }
+
+    private func catchUp(waitingForStill: Bool) {
+        work = nil
+        guard let workspace else { return }
+        if waitingForStill {
+            let still = ProcessInfo.processInfo.systemUptime - PageStackView.lastInput
+            if still < PageStackView.idleDelay {
+                schedule(after: max(0.25, PageStackView.idleDelay - still))
+                return
+            }
+        }
+        let active = workspace.layout.activeTab
+        let context = active.map { workspace.context(for: $0) }
+        guard active?.id != tab?.id || active?.resource != tab?.resource || context !== self.context else { return }
+        tab = active
+        self.context = context
     }
 }
 
