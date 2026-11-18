@@ -126,6 +126,36 @@ final class MindmapPluginTests: XCTestCase {
         _ = view
     }
 
+    /// A card's map can be drawn by two views at once at two widths (a folder's page and the same page built ahead):
+    /// only one sizes the model, or each layout would lay the other out again until AppKit stopped the app.
+    func testTwoViewsOfOneMapDoNotFightOverItsSize() throws {
+        let (tab, view) = try tab("Map.md")
+        let window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 500, height: 200), styleMask: .borderless,
+                              backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        defer { window.close() }
+        let root = NSView(frame: CGRect(x: 0, y: 0, width: 500, height: 200))
+        window.contentView = root
+        let first = MindmapCanvasView(model: tab), second = MindmapCanvasView(model: tab)
+        first.frame = CGRect(x: 0, y: 0, width: 191.5, height: 200)
+        second.frame = CGRect(x: 250, y: 0, width: 207, height: 200)
+        for canvas in [first, second] {
+            root.addSubview(canvas)
+            canvas.hostEnvironmentChanged(NativeViewEnvironment(theme: .standard))
+        }
+        for _ in 0..<3 {
+            first.needsLayout = true
+            second.needsLayout = true
+            root.layoutSubtreeIfNeeded()
+        }
+        XCTAssertEqual(tab.viewSize, CGSize(width: 191.5, height: 200), "the first view sizes the map; the second draws it")
+        first.removeFromSuperview()
+        second.needsLayout = true
+        root.layoutSubtreeIfNeeded()
+        XCTAssertEqual(tab.viewSize, CGSize(width: 207, height: 200), "the view left takes over once the first is gone")
+        _ = view
+    }
+
     func testEditingRenamesAndUndoRestores() throws {
         let (tab, _) = try tab("Map.md")
         let one = try id(tab, "One")

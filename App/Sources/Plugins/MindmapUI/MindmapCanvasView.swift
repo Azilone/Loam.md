@@ -217,7 +217,8 @@ final class MindmapCanvasView: NSView, NativeHostedView {
     override func layout() {
         super.layout()
         let size = CGSize(width: bounds.width, height: max(0, bounds.height - topInset))
-        if size != model.viewSize { model.viewResized(size) }
+        if model.sizingView == nil || (model.sizingView as? NSView)?.window == nil { model.sizingView = self }
+        if model.sizingView === self, size != model.viewSize { model.viewResized(size) }
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         pictureLayer.frame = bounds

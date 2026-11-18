@@ -197,6 +197,11 @@ final class MindmapTabModel {
     var offset: CGSize = .zero
     var scale: CGFloat = 1
     var viewSize: CGSize = .zero
+    /// The view whose size `viewSize` is. A card's context is shared, so one map can be drawn by several views at
+    /// once (a folder's page and the same page built ahead at another width): if each set its own size, each change
+    /// would lay the others out again, endlessly, and AppKit stops the app. One view sizes the map; the others draw
+    /// it as it is.
+    @ObservationIgnored weak var sizingView: AnyObject?
     /// How the view plays what changed since it last showed the model: the layout springs into place
     /// (`MindmapTabModel.spring`), the camera glides (`Motion.Spring.smooth`). Set by the change, cleared by the view
     /// once it has shown it; a change that does not ask leaves the flag as it is, so one animated change in a turn
