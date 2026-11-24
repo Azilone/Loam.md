@@ -6,6 +6,7 @@ How to write it: AGENTS.md, "Releasing an update".
 
 ## Unreleased
 
+- Fixed: Loam no longer hangs at launch when some notes of an iCloud Drive vault are not downloaded on this Mac yet.
 - Fixed: Loam quit on its own when showing a folder that holds a mind map, often while resizing the window or
   opening the sidebars.
 - Closing a tab and switching notes are smoother: the right sidebar updates in place just after the page changes, and waits while it is closed.

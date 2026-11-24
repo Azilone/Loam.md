@@ -113,9 +113,24 @@ public final class NoteGraphIndex: NoteGraphService, NoteGraphLoading {
         if !queued.isEmpty { apply(queued) }
     }
 
+    /// Whether the file is in iCloud Drive without its contents on this Mac ("dataless"); if so, asks for its download.
+    static func startDownloadIfCloudOnly(_ url: URL) -> Bool {
+        #if canImport(Darwin)
+        var info = stat()
+        let dataless: UInt32 = 0x4000_0000  // SF_DATALESS, <sys/stat.h>
+        guard lstat(url.path, &info) == 0, info.st_flags & dataless != 0 else { return false }
+        try? FileManager.default.startDownloadingUbiquitousItem(at: url)
+        return true
+        #else
+        return false
+        #endif
+    }
+
     private static func build(from vault: VaultAccess) throws -> ([String: NoteInfo], [String: [String]]) {
         // Read and parsed on every core: each note is on its own, and this is the launch's longest work.
-        let paths = try vault.markdownPaths()
+        // A note iCloud Drive keeps only in the cloud is left out: reading it waits for its download, minutes or forever
+        // offline, and the launch waits for this index. Its download starts now, so the next launch has it.
+        let paths = try vault.markdownPaths().filter { !Self.startDownloadIfCloudOnly(vault.rootURL.appendingPathComponent($0)) }
         var parsed = [Result<NoteInfo, Error>?](repeating: nil, count: paths.count)
         // Never in parallel on the main thread: a read may hop to the main thread (an editor flushing unsaved typing
         // on `NoteWillRead`), and the main thread, waiting for the workers, would never answer it.
